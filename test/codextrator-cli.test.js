@@ -220,6 +220,29 @@ try {
   recovery = JSON.parse(runCodextrator(["recovery", "--json"], { cwd: workspaceRoot }));
   assert.strictEqual(recovery.find((row) => row.slot === "session-01").recommendation, "restart_thread");
 
+  const fakeCodexHome = path.join(tmpRoot, "codex-home");
+  const fakeAutomationDir = path.join(fakeCodexHome, "automations", "demo-heartbeat");
+  fs.mkdirSync(fakeAutomationDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(fakeAutomationDir, "automation.toml"),
+    'version = 1\nid = "demo-heartbeat"\ntarget_thread_id = "fresh-thread"\n',
+    "utf8"
+  );
+
+  runCodextrator([
+    "heartbeat",
+    "session-01",
+    "--status",
+    "ok",
+    "--automation-id",
+    "demo-heartbeat"
+  ], {
+    cwd: workspaceRoot,
+    env: { CODEX_HOME: fakeCodexHome }
+  });
+  status = readStatus();
+  assert.strictEqual(status.registry.sessions["session-01"].thread_id, "fresh-thread");
+
   runCodextrator(["heartbeat", "session-01", "--status", "ok"], { cwd: workspaceRoot });
   recovery = JSON.parse(runCodextrator(["recovery", "--json"], { cwd: workspaceRoot }));
   assert.strictEqual(recovery.find((row) => row.slot === "session-01").recommendation, "await_integration");

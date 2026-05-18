@@ -3,6 +3,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const os = require("os");
 const crypto = require("crypto");
 const { execFileSync } = require("child_process");
 
@@ -540,11 +541,13 @@ function cmdHeartbeat(args, opts) {
   if (!opts.status) throw new Error("heartbeat requires --status");
 
   const store = findStore();
+  const automationId = opts["automation-id"] || null;
+  const threadId = opts["thread-id"] || inferAutomationThreadId(automationId);
   const heartbeat = {
     slot,
     status: opts.status,
-    automation_id: opts["automation-id"] || null,
-    thread_id: opts["thread-id"] || null,
+    automation_id: automationId,
+    thread_id: threadId,
     checked_at: now(),
     error: opts.error || null,
     requested_path: opts["requested-path"] || null,
@@ -554,6 +557,18 @@ function cmdHeartbeat(args, opts) {
   writeJson(path.join(store, "heartbeat", `${slot}.json`), heartbeat);
   updateSlotHeartbeat(store, slot, heartbeat);
   console.log(`Heartbeat ${slot}: ${heartbeat.status}`);
+}
+
+function inferAutomationThreadId(automationId) {
+  if (!automationId) return null;
+
+  const codexHome = process.env.CODEX_HOME || path.join(os.homedir(), ".codex");
+  const automationPath = path.join(codexHome, "automations", automationId, "automation.toml");
+  if (!fs.existsSync(automationPath)) return null;
+
+  const content = fs.readFileSync(automationPath, "utf8");
+  const match = content.match(/^\s*target_thread_id\s*=\s*"([^"]+)"\s*$/m);
+  return match ? match[1] : null;
 }
 
 function cmdRecovery(opts) {
