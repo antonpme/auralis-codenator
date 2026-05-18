@@ -181,9 +181,27 @@ try {
   status = readStatus();
   assert.strictEqual(sessionRow(status, "coordinator").unread, 1);
 
-  const coordinatorInbox = JSON.parse(runCodextrator(["inbox", "coordinator", "--json"], { cwd: workspaceRoot }));
+  const coordinatorInbox = JSON.parse(runCodextrator(["inbox", "coordinator", "--json", "--peek"], { cwd: workspaceRoot }));
   assert.strictEqual(coordinatorInbox.length, 1);
   assert.strictEqual(coordinatorInbox[0].type, "commit_report");
+  let watchdog = JSON.parse(runCodextrator([
+    "watchdog-check",
+    "--json",
+    "--snooze-minutes",
+    "60"
+  ], { cwd: workspaceRoot }));
+  assert.strictEqual(watchdog.decision, "NOTIFY");
+  assert.ok(watchdog.alerts.some((alert) => alert.type === "coordinator_inbox"));
+  watchdog = JSON.parse(runCodextrator([
+    "watchdog-check",
+    "--json",
+    "--snooze-minutes",
+    "60"
+  ], { cwd: workspaceRoot }));
+  assert.strictEqual(watchdog.decision, "DONT_NOTIFY");
+  assert.ok(watchdog.suppressed.some((alert) => alert.type === "coordinator_inbox"));
+
+  runCodextrator(["inbox", "coordinator", "--json"], { cwd: workspaceRoot });
   status = readStatus();
   assert.strictEqual(sessionRow(status, "coordinator").unread, 0);
 

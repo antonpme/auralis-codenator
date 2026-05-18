@@ -63,6 +63,9 @@ function main() {
       case "recovery":
         cmdRecovery(opts);
         break;
+      case "watchdog-check":
+        cmdWatchdogCheck(opts);
+        break;
       case "hook-post-tool-use":
         cmdHookPostToolUse();
         break;
@@ -95,6 +98,7 @@ Usage:
   codextrator slots [--json]
   codextrator heartbeat SLOT --status ok|failed|stale [--automation-id ID] [--thread-id ID] [--error TEXT]
   codextrator recovery [--json]
+  codextrator watchdog-check [--json] [--heartbeat-max-minutes N] [--snooze-minutes N] [--dry-run]
   codextrator hook-post-tool-use
   codextrator hook-template
 `);
@@ -568,6 +572,62 @@ function cmdRecovery(opts) {
   }
 }
 
+function cmdWatchdogCheck(opts) {
+  const store = findStore();
+  const registry = readRegistry(store);
+  const checkedAt = now();
+  const heartbeatMaxMinutes = Number(opts["heartbeat-max-minutes"] || 6);
+  const snoozeMinutes = Number(opts["snooze-minutes"] || 15);
+  const rows = buildRecoveryRows(store, registry);
+  const coordinator = rows.find((row) => row.slot === "coordinator");
+  const alerts = buildWatchdogAlerts(rows, {
+    heartbeatMaxMs: heartbeatMaxMinutes * MINUTE_MS
+  });
+  const previous = readWatchdogState(store, "coordinator");
+  const { unsuppressed, suppressed } = applyWatchdogSnooze(alerts, previous, {
+    checkedAt,
+    snoozeMs: snoozeMinutes * MINUTE_MS
+  });
+  const decision = unsuppressed.length > 0 ? "NOTIFY" : "DONT_NOTIFY";
+  const state = updateWatchdogState(previous, {
+    checkedAt,
+    decision,
+    alerts,
+    unsuppressed,
+    suppressed,
+    coordinator
+  });
+
+  if (!opts["dry-run"]) {
+    writeWatchdogState(store, "coordinator", state);
+  }
+
+  const output = {
+    decision,
+    checked_at: checkedAt,
+    coordinator_unread: coordinator ? coordinator.unread : null,
+    alerts: unsuppressed,
+    suppressed,
+    total_alerts: alerts.length
+  };
+
+  if (opts.json) {
+    console.log(JSON.stringify(output, null, 2));
+    return;
+  }
+
+  console.log(`Codextrator watchdog: ${decision}`);
+  const visible = decision === "NOTIFY" ? unsuppressed : suppressed;
+  if (visible.length === 0) {
+    console.log("No actionable coordinator watchdog alert.");
+    return;
+  }
+  for (const alert of visible) {
+    const suffix = alert.detail ? ` ${alert.detail}` : "";
+    console.log(`- ${alert.slot} ${alert.type}: ${alert.reason}${suffix}`);
+  }
+}
+
 function cmdHookPostToolUse() {
   const input = readStdinIfAvailable();
   if (!input.trim()) return;
@@ -627,7 +687,7 @@ function cmdHookTemplate() {
 
 function ensureStore(store) {
   fs.mkdirSync(store, { recursive: true });
-  for (const name of ["inbox", "archive", "reports", "tasks", "hooks", "heartbeat", "messages"]) {
+  for (const name of ["inbox", "archive", "reports", "tasks", "hooks", "heartbeat", "messages", "watchdog"]) {
     fs.mkdirSync(path.join(store, name), { recursive: true });
   }
 }
@@ -850,6 +910,115 @@ function recoveryRecommendation(row) {
   return { action: "ok", reason: "" };
 }
 
+function buildWatchdogAlerts(rows, options) {
+  const heartbeatMaxMs = options.heartbeatMaxMs || 6 * MINUTE_MS;
+  const alerts = [];
+  const coordinator = rows.find((row) => row.slot === "coordinator");
+
+  if (coordinator && coordinator.unread > 0) {
+    alerts.push(makeWatchdogAlert("coordinator_inbox", coordinator, {
+      reason: "coordinator_reports_waiting",
+      detail: `${coordinator.unread} message(s) waiting`,
+      ref: coordinator.latest_inbox_created_at || String(coordinator.unread)
+    }));
+  }
+
+  if (coordinator && isOlderThan(coordinator.heartbeat_checked_at, heartbeatMaxMs)) {
+    alerts.push(makeWatchdogAlert("coordinator_heartbeat", coordinator, {
+      reason: "coordinator_heartbeat_overdue",
+      detail: `last check ${coordinator.heartbeat_checked_at || "never"}`,
+      ref: coordinator.heartbeat_checked_at || "missing"
+    }));
+  }
+
+  for (const row of rows) {
+    if (row.slot === "coordinator") continue;
+    if (row.recommendation !== "restart_thread" && row.reason !== "heartbeat_stale") continue;
+    alerts.push(makeWatchdogAlert("slot_recovery", row, {
+      reason: row.reason || row.recommendation,
+      detail: row.current_task_id ? `task=${row.current_task_id}` : "",
+      ref: row.current_task_id || row.heartbeat_checked_at || row.latest_inbox_created_at || row.slot
+    }));
+  }
+
+  return alerts;
+}
+
+function makeWatchdogAlert(type, row, input) {
+  const key = [
+    type,
+    row.slot,
+    input.reason || "",
+    input.ref || ""
+  ].join(":");
+  return {
+    key,
+    type,
+    slot: row.slot,
+    reason: input.reason || "",
+    detail: input.detail || "",
+    ref: input.ref || "",
+    unread: row.unread,
+    recommendation: row.recommendation || "",
+    heartbeat_checked_at: row.heartbeat_checked_at || null,
+    latest_inbox_created_at: row.latest_inbox_created_at || null,
+    current_task_id: row.current_task_id || null
+  };
+}
+
+function applyWatchdogSnooze(alerts, previous, options) {
+  const checkedAt = options.checkedAt || now();
+  const snoozeMs = options.snoozeMs || 15 * MINUTE_MS;
+  const lastNotified = previous.last_notified || {};
+  const unsuppressed = [];
+  const suppressed = [];
+
+  for (const alert of alerts) {
+    const last = lastNotified[alert.key];
+    if (last && !isOlderThan(last, snoozeMs, checkedAt)) {
+      suppressed.push({
+        ...alert,
+        suppressed_until: new Date(Date.parse(last) + snoozeMs).toISOString()
+      });
+    } else {
+      unsuppressed.push(alert);
+    }
+  }
+
+  return { unsuppressed, suppressed };
+}
+
+function updateWatchdogState(previous, input) {
+  const lastNotified = { ...(previous.last_notified || {}) };
+  for (const alert of input.unsuppressed) {
+    lastNotified[alert.key] = input.checkedAt;
+  }
+
+  return {
+    version: 1,
+    checked_at: input.checkedAt,
+    decision: input.decision,
+    coordinator_unread: input.coordinator ? input.coordinator.unread : null,
+    alerts: input.alerts,
+    suppressed: input.suppressed,
+    last_notified: lastNotified
+  };
+}
+
+function readWatchdogState(store, name) {
+  const file = path.join(store, "watchdog", `${safeFileName(name)}.json`);
+  if (!fs.existsSync(file)) return {};
+  try {
+    return readJson(file);
+  } catch {
+    return {};
+  }
+}
+
+function writeWatchdogState(store, name, state) {
+  writeJson(path.join(store, "watchdog", `${safeFileName(name)}.json`), state);
+}
+
 function readHeartbeat(store, slot) {
   const file = path.join(store, "heartbeat", `${safeFileName(slot)}.json`);
   if (!fs.existsSync(file)) return null;
@@ -1017,10 +1186,12 @@ function now() {
   return new Date().toISOString();
 }
 
-function isOlderThan(value, ageMs) {
+function isOlderThan(value, ageMs, nowValue = Date.now()) {
   const time = Date.parse(value || "");
   if (Number.isNaN(time)) return false;
-  return Date.now() - time > ageMs;
+  const nowMs = typeof nowValue === "number" ? nowValue : Date.parse(nowValue);
+  if (Number.isNaN(nowMs)) return false;
+  return nowMs - time > ageMs;
 }
 
 function safeStamp() {

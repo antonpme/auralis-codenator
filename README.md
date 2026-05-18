@@ -96,6 +96,31 @@ Show recovery recommendations:
 node .\bin\codextrator.js recovery
 ```
 
+Run a quiet watchdog check that does not create Codex sessions and does not
+mutate inboxes, tasks, or focus-slot state:
+
+```powershell
+node .\bin\codextrator.js watchdog-check --json
+```
+
+`watchdog-check` reads coordinator inbox, recovery, and heartbeat health, then
+returns `NOTIFY` or `DONT_NOTIFY`. It records only watchdog state under
+`watchdog/` so repeated alerts can be snoozed without clearing real work.
+Use this from an OS scheduler or a long-running local helper instead of a
+frequent Codex cron automation when sidebar noise matters.
+
+Example quiet local check:
+
+```powershell
+$env:AURALIS_CODEXTRATOR_ROOT = "E:\01-AURALIS"
+node E:\01-AURALIS\tools\auralis-codextrator\bin\codextrator.js watchdog-check `
+  --json `
+  --snooze-minutes 20
+```
+
+This command is intentionally not an actor. It should never perform
+integration, task assignment, inbox clearing, or Desktop thread creation.
+
 Show status:
 
 ```powershell
@@ -153,4 +178,7 @@ global Codex config.
   not as healthy idle state. Current CLI recovery flags queued unread work after
   the grace window so a coordinator can nudge or restart the slot instead of
   silently leaving it parked.
+- Use `watchdog-check` for out-of-band health checks. Frequent Codex cron
+  automations create visible Codex sessions and are not suitable as quiet
+  watchdogs.
 - MCP can wrap this same store later.
