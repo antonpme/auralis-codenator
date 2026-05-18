@@ -15,6 +15,10 @@ and branch live in the registry metadata.
 - Local registry of focus sessions.
 - Per-session inboxes.
 - Lightweight direct messages.
+- Durable task records.
+- Slot registry view with current task and heartbeat state.
+- Structured message ledger.
+- Heartbeat health records and recovery summary.
 - Commit reports.
 - Status view with unread counts.
 - Codex hook entrypoint for post-tool commit detection.
@@ -55,6 +59,43 @@ Read inbox:
 node .\bin\codextrator.js inbox coordinator
 ```
 
+Assign a structured task:
+
+```powershell
+node .\bin\codextrator.js task-create session-01 `
+  --task-id session-01-round-1 `
+  --title "Round 1: focused slice" `
+  --message "Work only in the assigned files, test, commit, and report."
+```
+
+List tasks and slots:
+
+```powershell
+node .\bin\codextrator.js task-list
+node .\bin\codextrator.js slots
+```
+
+Import already-queued inbox messages into task records without sending
+duplicates:
+
+```powershell
+node .\bin\codextrator.js task-import-inbox session-01
+```
+
+Record heartbeat health:
+
+```powershell
+node .\bin\codextrator.js heartbeat session-01 `
+  --status ok `
+  --automation-id auralis-codextrator-session-01
+```
+
+Show recovery recommendations:
+
+```powershell
+node .\bin\codextrator.js recovery
+```
+
 Show status:
 
 ```powershell
@@ -91,6 +132,8 @@ global Codex config.
     coordinator/
     session-01/
   archive/
+  heartbeat/
+  messages/
   reports/
   tasks/
   hooks/
@@ -102,4 +145,8 @@ global Codex config.
 - Use registry metadata for project/focus/worktree/branch.
 - Keep identity separate from focus.
 - Use hooks for automatic reports, not for hidden work.
+- Treat inbox messages as wake/notification surfaces; task records are the
+  durable work state.
+- Treat heartbeat health as operational state; a failed or stale heartbeat
+  means the slot thread may need a fresh Desktop session.
 - MCP can wrap this same store later.

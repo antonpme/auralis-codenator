@@ -7,6 +7,7 @@ const { execFileSync } = require("child_process");
 
 const repoRoot = path.resolve(__dirname, "..");
 const cli = path.join(repoRoot, "bin", "codextrator.js");
+const STORE_NAME = ".auralis-codextrator";
 const tmpRoot = path.join(repoRoot, ".tmp-test", `run-${Date.now()}`);
 const workspaceRoot = path.join(tmpRoot, "workspace");
 const worktree = path.join(workspaceRoot, "worktrees", "session-01");
@@ -33,6 +34,14 @@ function readStatus(cwd = workspaceRoot) {
 
 function sessionRow(status, slot) {
   return status.rows.find((row) => row.slot === slot);
+}
+
+function readTasks(cwd = workspaceRoot) {
+  return JSON.parse(runCodextrator(["task-list", "--json"], { cwd }));
+}
+
+function taskById(tasks, taskId) {
+  return tasks.find((task) => task.task_id === taskId);
 }
 
 function cleanup() {
@@ -66,11 +75,11 @@ try {
   assert.strictEqual(sessionRow(status, "session-01").unread, 0);
 
   runCodextrator([
-    "send",
+    "task-create",
     "session-01",
-    "--from",
-    "coordinator",
-    "--subject",
+    "--task-id",
+    "task-demo-1",
+    "--title",
     "Round 1",
     "--message",
     "Do the focused task."
@@ -78,10 +87,38 @@ try {
 
   status = readStatus();
   assert.strictEqual(sessionRow(status, "session-01").unread, 1);
+  let tasks = readTasks();
+  assert.strictEqual(taskById(tasks, "task-demo-1").status, "queued");
+
+  let slots = JSON.parse(runCodextrator(["slots", "--json"], { cwd: workspaceRoot }));
+  let slot = slots.find((row) => row.slot === "session-01");
+  assert.strictEqual(slot.current_task_id, "task-demo-1");
+  assert.strictEqual(slot.current_task_status, "queued");
+
+  runCodextrator([
+    "register",
+    "session-01",
+    "--project",
+    "demo-project",
+    "--identity",
+    "elian",
+    "--focus",
+    "Memory Slice Restarted",
+    "--worktree",
+    worktree,
+    "--branch",
+    "codex/demo"
+  ], { cwd: workspaceRoot });
+  slots = JSON.parse(runCodextrator(["slots", "--json"], { cwd: workspaceRoot }));
+  slot = slots.find((row) => row.slot === "session-01");
+  assert.strictEqual(slot.current_task_id, "task-demo-1");
+  assert.strictEqual(slot.focus, "Memory Slice Restarted");
 
   const peeked = JSON.parse(runCodextrator(["inbox", "session-01", "--json", "--peek"], { cwd: workspaceRoot }));
   assert.strictEqual(peeked.length, 1);
   assert.strictEqual(peeked[0].subject, "Round 1");
+  assert.strictEqual(peeked[0].type, "task.assign");
+  assert.strictEqual(peeked[0].task_id, "task-demo-1");
   status = readStatus();
   assert.strictEqual(sessionRow(status, "session-01").unread, 1);
 
@@ -89,6 +126,28 @@ try {
   assert.strictEqual(read.length, 1);
   status = readStatus();
   assert.strictEqual(sessionRow(status, "session-01").unread, 0);
+  tasks = readTasks();
+  assert.strictEqual(taskById(tasks, "task-demo-1").status, "active");
+
+  runCodextrator([
+    "send",
+    "session-01",
+    "--from",
+    "coordinator",
+    "--subject",
+    "Follow-up",
+    "--type",
+    "task.progress",
+    "--task-id",
+    "task-demo-1",
+    "--payload",
+    "{\"note\":\"structured\"}",
+    "--message",
+    "Structured progress ping."
+  ], { cwd: workspaceRoot });
+  const progress = JSON.parse(runCodextrator(["inbox", "session-01", "--json"], { cwd: workspaceRoot }));
+  assert.strictEqual(progress[0].type, "task.progress");
+  assert.strictEqual(progress[0].payload.note, "structured");
 
   run("git", ["init"], { cwd: worktree });
   run("git", ["config", "user.email", "codextrator-test@example.invalid"], { cwd: worktree });
@@ -100,9 +159,13 @@ try {
   const env = { AURALIS_CODEXTRATOR_ROOT: workspaceRoot };
   const reportOutput = runCodextrator(["report-commit", "--slot", "session-01"], { cwd: worktree, env });
   assert.match(reportOutput, /Reported commit/);
+  const sha = run("git", ["rev-parse", "HEAD"], { cwd: worktree }).trim();
 
   status = readStatus();
   assert.strictEqual(sessionRow(status, "coordinator").unread, 1);
+  tasks = readTasks();
+  assert.strictEqual(taskById(tasks, "task-demo-1").status, "reported");
+  assert.strictEqual(taskById(tasks, "task-demo-1").commit, sha);
 
   const duplicateOutput = runCodextrator(["report-commit", "--slot", "session-01"], { cwd: worktree, env });
   assert.match(duplicateOutput, /already reported/);
@@ -114,6 +177,63 @@ try {
   assert.strictEqual(coordinatorInbox[0].type, "commit_report");
   status = readStatus();
   assert.strictEqual(sessionRow(status, "coordinator").unread, 0);
+
+  runCodextrator([
+    "heartbeat",
+    "session-01",
+    "--status",
+    "stale",
+    "--automation-id",
+    "demo-heartbeat",
+    "--thread-id",
+    "demo-thread",
+    "--error",
+    "stale path"
+  ], { cwd: workspaceRoot });
+  let recovery = JSON.parse(runCodextrator(["recovery", "--json"], { cwd: workspaceRoot }));
+  assert.strictEqual(recovery.find((row) => row.slot === "session-01").recommendation, "restart_thread");
+
+  runCodextrator(["heartbeat", "session-01", "--status", "ok"], { cwd: workspaceRoot });
+  recovery = JSON.parse(runCodextrator(["recovery", "--json"], { cwd: workspaceRoot }));
+  assert.strictEqual(recovery.find((row) => row.slot === "session-01").recommendation, "await_integration");
+
+  runCodextrator(["task-update", "task-demo-1", "--status", "integrated"], { cwd: workspaceRoot });
+  tasks = readTasks();
+  assert.strictEqual(taskById(tasks, "task-demo-1").status, "integrated");
+  slots = JSON.parse(runCodextrator(["slots", "--json"], { cwd: workspaceRoot }));
+  slot = slots.find((row) => row.slot === "session-01");
+  assert.strictEqual(slot.current_task_id, null);
+
+  runCodextrator([
+    "send",
+    "session-01",
+    "--from",
+    "coordinator",
+    "--subject",
+    "Plain imported task",
+    "--message",
+    "This came from an older plain inbox assignment."
+  ], { cwd: workspaceRoot });
+  let imported = JSON.parse(runCodextrator(["task-import-inbox", "session-01", "--json"], { cwd: workspaceRoot }));
+  assert.strictEqual(imported.length, 1);
+  assert.strictEqual(imported[0].title, "Plain imported task");
+  assert.strictEqual(imported[0].status, "queued");
+  const importedTaskId = imported[0].task_id;
+  const upgradedInbox = JSON.parse(runCodextrator(["inbox", "session-01", "--json", "--peek"], { cwd: workspaceRoot }));
+  assert.strictEqual(upgradedInbox[0].type, "task.assign");
+  assert.strictEqual(upgradedInbox[0].task_id, importedTaskId);
+  runCodextrator(["inbox", "session-01", "--json"], { cwd: workspaceRoot });
+  tasks = readTasks();
+  assert.strictEqual(taskById(tasks, importedTaskId).status, "active");
+  imported = JSON.parse(runCodextrator(["task-import-inbox", "session-01", "--json"], { cwd: workspaceRoot }));
+  assert.strictEqual(imported.length, 0);
+
+  const ledger = fs.readFileSync(path.join(workspaceRoot, STORE_NAME, "messages", "ledger.jsonl"), "utf8")
+    .trim()
+    .split(/\r?\n/)
+    .map((line) => JSON.parse(line));
+  assert.ok(ledger.some((message) => message.type === "task.assign"));
+  assert.ok(ledger.some((message) => message.type === "commit_report"));
 
   console.log("codextrator-cli.test.js: PASS");
 } finally {

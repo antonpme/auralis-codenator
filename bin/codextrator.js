@@ -39,6 +39,27 @@ function main() {
       case "report-commit":
         cmdReportCommit(opts);
         break;
+      case "task-create":
+        cmdTaskCreate(args, opts);
+        break;
+      case "task-list":
+        cmdTaskList(opts);
+        break;
+      case "task-update":
+        cmdTaskUpdate(args, opts);
+        break;
+      case "task-import-inbox":
+        cmdTaskImportInbox(args, opts);
+        break;
+      case "slots":
+        cmdSlots(opts);
+        break;
+      case "heartbeat":
+        cmdHeartbeat(args, opts);
+        break;
+      case "recovery":
+        cmdRecovery(opts);
+        break;
       case "hook-post-tool-use":
         cmdHookPostToolUse();
         break;
@@ -64,6 +85,13 @@ Usage:
   codextrator inbox SLOT [--peek] [--json]
   codextrator status [--json]
   codextrator report-commit [--slot SLOT] [--force]
+  codextrator task-create SLOT --title TEXT --message TEXT [--task-id ID] [--subject TEXT]
+  codextrator task-list [--slot SLOT] [--status STATUS] [--json]
+  codextrator task-update TASK_ID [--status STATUS] [--commit SHA] [--blocker TEXT]
+  codextrator task-import-inbox SLOT [--dry-run] [--json]
+  codextrator slots [--json]
+  codextrator heartbeat SLOT --status ok|failed|stale [--automation-id ID] [--thread-id ID] [--error TEXT]
+  codextrator recovery [--json]
   codextrator hook-post-tool-use
   codextrator hook-template
 `);
@@ -129,8 +157,10 @@ function cmdRegister(args, opts) {
   const registry = readRegistry(store);
   const worktree = normalizePath(opts.worktree);
   const branch = opts.branch || detectGitBranch(worktree) || "";
+  const previous = registry.sessions[slot] || {};
 
   registry.sessions[slot] = {
+    ...previous,
     slot,
     identity: opts.identity || "developer",
     project: opts.project,
@@ -163,6 +193,8 @@ function cmdSend(args, opts) {
     to,
     subject: opts.subject || "",
     message,
+    task_id: opts["task-id"] || null,
+    payload: parsePayload(opts.payload),
     created_at: now(),
     cwd: normalizePath(process.cwd())
   };
@@ -194,6 +226,12 @@ function cmdInbox(args, opts) {
   }
 
   if (!opts.peek) {
+    for (const message of messages) {
+      if (message.type === "task.assign" && message.task_id && message.to === slot) {
+        claimTask(store, message.task_id, slot);
+      }
+    }
+
     const archiveDir = path.join(store, "archive", slot);
     fs.mkdirSync(archiveDir, { recursive: true });
     for (const file of files) {
@@ -268,6 +306,12 @@ function cmdReportCommit(opts) {
   const reportPath = path.join(store, "reports", `${safeStamp()}_${slot}_${sha.slice(0, 12)}.json`);
   writeJson(reportPath, report);
   markReported(store, slot, sha);
+  markActiveTaskReported(store, slot, {
+    sha,
+    branch,
+    subject,
+    worktree: normalizePath(process.cwd())
+  });
 
   writeMessage(store, "coordinator", {
     id: makeId(),
@@ -282,6 +326,243 @@ function cmdReportCommit(opts) {
   });
 
   console.log(`Reported commit ${sha.slice(0, 7)} from ${slot}`);
+}
+
+function cmdTaskCreate(args, opts) {
+  const slot = args[0];
+  if (!slot) throw new Error("task-create requires SLOT");
+  if (!opts.title) throw new Error("task-create requires --title");
+  const message = opts.message || readStdinIfAvailable();
+  if (!message.trim()) throw new Error("task-create requires --message or stdin");
+
+  const store = findStore();
+  ensureInbox(store, slot);
+  const registry = readRegistry(store);
+  const session = registry.sessions[slot] || {};
+  const task = normalizeTaskRecord({
+    task_id: opts["task-id"] || makeTaskId(slot),
+    slot,
+    title: opts.title,
+    status: opts.status || "queued",
+    subject: opts.subject || opts.title,
+    message,
+    project: opts.project || session.project || "",
+    branch: opts.branch || session.branch || "",
+    worktree: opts.worktree ? normalizePath(opts.worktree) : (session.worktree || ""),
+    assigned_at: now(),
+    next_policy: opts["next-policy"] || "report_commit_then_coordinator_integrates",
+    created_by: opts.from || inferSlot(store) || "coordinator"
+  });
+
+  writeTask(store, task);
+  updateSlotTask(store, slot, task.task_id, task.status);
+  writeMessage(store, slot, {
+    id: makeId(),
+    type: "task.assign",
+    from: task.created_by,
+    to: slot,
+    subject: task.subject,
+    message: task.message,
+    task_id: task.task_id,
+    payload: {
+      task_id: task.task_id,
+      title: task.title,
+      status: task.status,
+      branch: task.branch,
+      worktree: task.worktree
+    },
+    created_at: now(),
+    cwd: normalizePath(process.cwd())
+  });
+
+  console.log(`Created task ${task.task_id} for ${slot}`);
+}
+
+function cmdTaskList(opts) {
+  const store = findStore();
+  const tasks = listTasks(store)
+    .filter((task) => !opts.slot || task.slot === opts.slot)
+    .filter((task) => !opts.status || task.status === opts.status);
+
+  if (opts.json) {
+    console.log(JSON.stringify(tasks, null, 2));
+    return;
+  }
+
+  if (tasks.length === 0) {
+    console.log("Tasks: empty");
+    return;
+  }
+
+  console.log(`Tasks: ${tasks.length}`);
+  for (const task of tasks) {
+    console.log(`${task.task_id.padEnd(28)} ${task.slot.padEnd(12)} ${task.status.padEnd(10)} ${task.title}`);
+  }
+}
+
+function cmdTaskUpdate(args, opts) {
+  const taskId = args[0];
+  if (!taskId) throw new Error("task-update requires TASK_ID");
+  const store = findStore();
+  const task = readTask(store, taskId);
+
+  if (opts.status) task.status = opts.status;
+  if (opts.commit) task.commit = opts.commit;
+  if (opts.blocker) {
+    task.blockers = [...(task.blockers || []), {
+      message: opts.blocker,
+      recorded_at: now()
+    }];
+    if (!opts.status) task.status = "blocked";
+  }
+  if (opts.tests) task.tests = opts.tests.split(",").map((item) => item.trim()).filter(Boolean);
+  task.updated_at = now();
+
+  if (task.status === "active" && !task.started_at) task.started_at = now();
+  if (task.status === "reported" && !task.reported_at) task.reported_at = now();
+  if (task.status === "integrated" && !task.integrated_at) task.integrated_at = now();
+
+  writeTask(store, task);
+  updateSlotTask(store, task.slot, task.task_id, task.status);
+  console.log(`Updated task ${task.task_id}: ${task.status}`);
+}
+
+function cmdTaskImportInbox(args, opts) {
+  const slot = args[0];
+  if (!slot) throw new Error("task-import-inbox requires SLOT");
+
+  const store = findStore();
+  ensureInbox(store, slot);
+  const dir = path.join(store, "inbox", slot);
+  const files = listJsonFiles(dir);
+  const messages = files.map((file) => ({
+    file,
+    message: readJson(path.join(dir, file))
+  }));
+  const existing = listTasks(store);
+  const imported = [];
+
+  for (const item of messages) {
+    const existingTask = existing.find((task) => task.source_message_id === item.message.id);
+    if (existingTask) {
+      if (!opts["dry-run"]) upgradeInboxTaskMessage(store, slot, item.file, item.message, existingTask);
+      continue;
+    }
+    if (item.message.type === "commit_report") continue;
+
+    const task = normalizeTaskRecord({
+      task_id: item.message.task_id || makeTaskId(slot),
+      slot,
+      title: item.message.subject || `Inbox task ${item.message.id}`,
+      subject: item.message.subject || "",
+      status: "queued",
+      message: item.message.message || "",
+      assigned_at: item.message.created_at || now(),
+      created_at: item.message.created_at || now(),
+      created_by: item.message.from || "coordinator",
+      project: sessionProject(store, slot),
+      branch: sessionBranch(store, slot),
+      worktree: sessionWorktree(store, slot),
+      next_policy: "claim_inbox_then_report_commit"
+    });
+    task.source_message_id = item.message.id;
+    task.source_inbox_file = normalizePath(path.join(dir, item.file));
+    imported.push(task);
+  }
+
+  if (!opts["dry-run"]) {
+    for (const task of imported) {
+      writeTask(store, task);
+      updateSlotTask(store, slot, task.task_id, task.status);
+      const messageFile = path.basename(task.source_inbox_file);
+      const message = readJson(path.join(store, "inbox", slot, messageFile));
+      upgradeInboxTaskMessage(store, slot, messageFile, message, task);
+    }
+  }
+
+  if (opts.json) {
+    console.log(JSON.stringify(imported, null, 2));
+    return;
+  }
+
+  console.log(`Imported ${imported.length} task(s) from ${slot} inbox${opts["dry-run"] ? " (dry-run)" : ""}`);
+  for (const task of imported) {
+    console.log(`${task.task_id} ${task.title}`);
+  }
+}
+
+function upgradeInboxTaskMessage(store, slot, file, message, task) {
+  if (message.type === "task.assign" && message.task_id === task.task_id) return;
+
+  writeJson(path.join(store, "inbox", slot, file), {
+    ...message,
+    type: "task.assign",
+    task_id: task.task_id,
+    payload: {
+      ...(message.payload || {}),
+      task_id: task.task_id,
+      title: task.title,
+      status: task.status,
+      branch: task.branch,
+      worktree: task.worktree
+    }
+  });
+}
+
+function cmdSlots(opts) {
+  const store = findStore();
+  const registry = readRegistry(store);
+  const rows = buildSlotRows(store, registry);
+
+  if (opts.json) {
+    console.log(JSON.stringify(rows, null, 2));
+    return;
+  }
+
+  console.log("Codextrator slots");
+  for (const row of rows) {
+    const heartbeat = row.heartbeat_status ? ` heartbeat=${row.heartbeat_status}` : "";
+    const currentTask = row.current_task_id ? ` task=${row.current_task_id}` : "";
+    console.log(`${row.slot.padEnd(12)} ${row.status.padEnd(8)} unread=${String(row.unread).padEnd(2)}${heartbeat}${currentTask} ${row.focus}`);
+  }
+}
+
+function cmdHeartbeat(args, opts) {
+  const slot = args[0];
+  if (!slot) throw new Error("heartbeat requires SLOT");
+  if (!opts.status) throw new Error("heartbeat requires --status");
+
+  const store = findStore();
+  const heartbeat = {
+    slot,
+    status: opts.status,
+    automation_id: opts["automation-id"] || null,
+    thread_id: opts["thread-id"] || null,
+    checked_at: now(),
+    error: opts.error || null,
+    requested_path: opts["requested-path"] || null,
+    active_path: opts["active-path"] || null
+  };
+
+  writeJson(path.join(store, "heartbeat", `${slot}.json`), heartbeat);
+  updateSlotHeartbeat(store, slot, heartbeat);
+  console.log(`Heartbeat ${slot}: ${heartbeat.status}`);
+}
+
+function cmdRecovery(opts) {
+  const store = findStore();
+  const registry = readRegistry(store);
+  const rows = buildRecoveryRows(store, registry);
+
+  if (opts.json) {
+    console.log(JSON.stringify(rows, null, 2));
+    return;
+  }
+
+  console.log("Codextrator recovery");
+  for (const row of rows) {
+    console.log(`${row.slot.padEnd(12)} ${row.recommendation.padEnd(22)} unread=${String(row.unread).padEnd(2)} status=${row.status}${row.reason ? ` reason=${row.reason}` : ""}`);
+  }
 }
 
 function cmdHookPostToolUse() {
@@ -343,7 +624,7 @@ function cmdHookTemplate() {
 
 function ensureStore(store) {
   fs.mkdirSync(store, { recursive: true });
-  for (const name of ["inbox", "archive", "reports", "tasks", "hooks"]) {
+  for (const name of ["inbox", "archive", "reports", "tasks", "hooks", "heartbeat", "messages"]) {
     fs.mkdirSync(path.join(store, name), { recursive: true });
   }
 }
@@ -351,6 +632,204 @@ function ensureStore(store) {
 function ensureInbox(store, slot) {
   fs.mkdirSync(path.join(store, "inbox", slot), { recursive: true });
   fs.mkdirSync(path.join(store, "archive", slot), { recursive: true });
+}
+
+function makeTaskId(slot) {
+  return `${slot}-${safeStamp().replace(/-/g, "").slice(0, 15)}-${crypto.randomBytes(3).toString("hex")}`;
+}
+
+function normalizeTaskRecord(input) {
+  const createdAt = input.created_at || now();
+  return {
+    version: 1,
+    task_id: input.task_id,
+    slot: input.slot,
+    title: input.title,
+    subject: input.subject || input.title,
+    status: input.status || "queued",
+    project: input.project || "",
+    branch: input.branch || "",
+    worktree: input.worktree || "",
+    message: input.message || "",
+    created_by: input.created_by || "coordinator",
+    assigned_at: input.assigned_at || createdAt,
+    started_at: input.started_at || null,
+    reported_at: input.reported_at || null,
+    integrated_at: input.integrated_at || null,
+    commit: input.commit || null,
+    tests: input.tests || [],
+    blockers: input.blockers || [],
+    next_policy: input.next_policy || "",
+    created_at: createdAt,
+    updated_at: input.updated_at || createdAt
+  };
+}
+
+function taskPath(store, taskId) {
+  return path.join(store, "tasks", `${safeFileName(taskId)}.json`);
+}
+
+function readTask(store, taskId) {
+  const file = taskPath(store, taskId);
+  if (!fs.existsSync(file)) throw new Error(`task not found: ${taskId}`);
+  return readJson(file);
+}
+
+function writeTask(store, task) {
+  writeJson(taskPath(store, task.task_id), task);
+}
+
+function listTasks(store) {
+  const dir = path.join(store, "tasks");
+  return listJsonFiles(dir)
+    .map((file) => readJson(path.join(dir, file)))
+    .sort((left, right) => String(left.assigned_at || left.created_at).localeCompare(String(right.assigned_at || right.created_at)));
+}
+
+function claimTask(store, taskId, slot) {
+  let task;
+  try {
+    task = readTask(store, taskId);
+  } catch {
+    return;
+  }
+  if (task.slot !== slot) return;
+  if (task.status === "queued" || task.status === "assigned") {
+    task.status = "active";
+    task.started_at = task.started_at || now();
+    task.updated_at = now();
+    writeTask(store, task);
+    updateSlotTask(store, slot, task.task_id, task.status);
+  }
+}
+
+function markActiveTaskReported(store, slot, report) {
+  const activeTasks = listTasks(store).filter((task) => task.slot === slot && task.status === "active");
+  if (activeTasks.length === 0) return;
+
+  const task = activeTasks[activeTasks.length - 1];
+  task.status = "reported";
+  task.reported_at = now();
+  task.commit = report.sha;
+  task.branch = report.branch || task.branch;
+  task.worktree = report.worktree || task.worktree;
+  task.report_subject = report.subject;
+  task.updated_at = now();
+  writeTask(store, task);
+  updateSlotTask(store, slot, task.task_id, task.status);
+}
+
+function updateSlotTask(store, slot, taskId, taskStatus) {
+  const registry = readRegistry(store);
+  const session = slot === "coordinator" ? registry.coordinator : registry.sessions[slot];
+  if (!session) return;
+
+  session.current_task_id = taskStatus === "integrated" || taskStatus === "done" ? null : taskId;
+  session.current_task_status = taskStatus;
+  session.updated_at = now();
+  if (slot === "coordinator") registry.coordinator = session;
+  else registry.sessions[slot] = session;
+  registry.updated_at = now();
+  writeRegistry(store, registry);
+}
+
+function updateSlotHeartbeat(store, slot, heartbeat) {
+  const registry = readRegistry(store);
+  const session = slot === "coordinator" ? registry.coordinator : registry.sessions[slot];
+  if (!session) return;
+
+  session.heartbeat = heartbeat;
+  session.heartbeat_status = heartbeat.status;
+  session.heartbeat_checked_at = heartbeat.checked_at;
+  if (heartbeat.automation_id) session.heartbeat_automation_id = heartbeat.automation_id;
+  if (heartbeat.thread_id) session.thread_id = heartbeat.thread_id;
+  if (heartbeat.status === "stale" || heartbeat.status === "failed") {
+    session.status = "stale";
+  } else if (session.status === "stale") {
+    session.status = "active";
+  }
+  session.updated_at = now();
+  if (slot === "coordinator") registry.coordinator = session;
+  else registry.sessions[slot] = session;
+  registry.updated_at = now();
+  writeRegistry(store, registry);
+}
+
+function sessionProject(store, slot) {
+  const registry = readRegistry(store);
+  const session = registry.sessions[slot] || {};
+  return session.project || "";
+}
+
+function sessionBranch(store, slot) {
+  const registry = readRegistry(store);
+  const session = registry.sessions[slot] || {};
+  return session.branch || "";
+}
+
+function sessionWorktree(store, slot) {
+  const registry = readRegistry(store);
+  const session = registry.sessions[slot] || {};
+  return session.worktree || "";
+}
+
+function buildSlotRows(store, registry) {
+  const slots = ["coordinator", ...Object.keys(registry.sessions || {}).sort()];
+  return slots.map((slot) => {
+    const session = slot === "coordinator" ? registry.coordinator : registry.sessions[slot];
+    const heartbeat = readHeartbeat(store, slot);
+    return {
+      slot,
+      identity: session.identity || "",
+      project: session.project || "",
+      focus: session.focus || "",
+      branch: session.branch || "",
+      status: session.status || "",
+      unread: countInbox(store, slot),
+      current_task_id: session.current_task_id || null,
+      current_task_status: session.current_task_status || null,
+      heartbeat_status: heartbeat ? heartbeat.status : (session.heartbeat_status || null),
+      heartbeat_checked_at: heartbeat ? heartbeat.checked_at : (session.heartbeat_checked_at || null),
+      heartbeat_automation_id: heartbeat ? heartbeat.automation_id : (session.heartbeat_automation_id || null),
+      thread_id: session.thread_id || (heartbeat ? heartbeat.thread_id : null)
+    };
+  });
+}
+
+function buildRecoveryRows(store, registry) {
+  return buildSlotRows(store, registry).map((row) => {
+    const recommendation = recoveryRecommendation(row);
+    return {
+      ...row,
+      recommendation: recommendation.action,
+      reason: recommendation.reason
+    };
+  });
+}
+
+function recoveryRecommendation(row) {
+  if (row.heartbeat_status === "stale" || row.heartbeat_status === "failed") {
+    return { action: "restart_thread", reason: `heartbeat_${row.heartbeat_status}` };
+  }
+  if (row.unread > 0 && !row.current_task_id) {
+    return { action: "read_inbox", reason: "queued_inbox" };
+  }
+  if (row.current_task_status === "active") {
+    return { action: "continue_task", reason: "task_active" };
+  }
+  if (row.current_task_status === "reported") {
+    return { action: "await_integration", reason: "task_reported" };
+  }
+  if (row.status === "paused") {
+    return { action: "parked", reason: "slot_paused" };
+  }
+  return { action: "ok", reason: "" };
+}
+
+function readHeartbeat(store, slot) {
+  const file = path.join(store, "heartbeat", `${safeFileName(slot)}.json`);
+  if (!fs.existsSync(file)) return null;
+  return readJson(file);
 }
 
 function findStore() {
@@ -408,6 +887,10 @@ function writeMessage(store, to, payload) {
   ensureInbox(store, to);
   const file = `${safeStamp()}_${payload.id}.json`;
   writeJson(path.join(store, "inbox", to, file), payload);
+  appendJsonl(path.join(store, "messages", "ledger.jsonl"), {
+    ...payload,
+    inbox_file: normalizePath(path.join(store, "inbox", to, file))
+  });
 }
 
 function renderCommitReport(report) {
@@ -468,6 +951,15 @@ function readStdinIfAvailable() {
   }
 }
 
+function parsePayload(value) {
+  if (!value) return {};
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    throw new Error(`--payload must be valid JSON: ${error.message}`);
+  }
+}
+
 function git(args, cwd) {
   return execFileSync("git", args, {
     cwd,
@@ -488,8 +980,17 @@ function safeStamp() {
   return now().replace(/[:.]/g, "-");
 }
 
+function safeFileName(value) {
+  return String(value).replace(/[^a-zA-Z0-9._-]/g, "_");
+}
+
 function normalizePath(value) {
   return path.resolve(value).replace(/\\/g, "/");
+}
+
+function appendJsonl(file, data) {
+  fs.mkdirSync(path.dirname(file), { recursive: true });
+  fs.appendFileSync(file, `${JSON.stringify(data)}\n`, "utf8");
 }
 
 main();
