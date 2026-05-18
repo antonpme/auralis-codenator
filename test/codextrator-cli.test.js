@@ -95,6 +95,15 @@ try {
   assert.strictEqual(slot.current_task_id, "task-demo-1");
   assert.strictEqual(slot.current_task_status, "queued");
 
+  const queuedTaskPath = path.join(workspaceRoot, STORE_NAME, "tasks", "task-demo-1.json");
+  const queuedTask = JSON.parse(fs.readFileSync(queuedTaskPath, "utf8"));
+  queuedTask.assigned_at = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+  fs.writeFileSync(queuedTaskPath, `${JSON.stringify(queuedTask, null, 2)}\n`, "utf8");
+  let recovery = JSON.parse(runCodextrator(["recovery", "--json"], { cwd: workspaceRoot }));
+  let recoveryRow = recovery.find((row) => row.slot === "session-01");
+  assert.strictEqual(recoveryRow.recommendation, "restart_thread");
+  assert.strictEqual(recoveryRow.reason, "queued_inbox_no_heartbeat");
+
   runCodextrator([
     "register",
     "session-01",
@@ -190,7 +199,7 @@ try {
     "--error",
     "stale path"
   ], { cwd: workspaceRoot });
-  let recovery = JSON.parse(runCodextrator(["recovery", "--json"], { cwd: workspaceRoot }));
+  recovery = JSON.parse(runCodextrator(["recovery", "--json"], { cwd: workspaceRoot }));
   assert.strictEqual(recovery.find((row) => row.slot === "session-01").recommendation, "restart_thread");
 
   runCodextrator(["heartbeat", "session-01", "--status", "ok"], { cwd: workspaceRoot });

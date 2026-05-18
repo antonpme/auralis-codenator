@@ -149,4 +149,8 @@ global Codex config.
   durable work state.
 - Treat heartbeat health as operational state; a failed or stale heartbeat
   means the slot thread may need a fresh Desktop session.
+- Treat old queued unread tasks without heartbeat health as recovery blockers,
+  not as healthy idle state. Current CLI recovery flags queued unread work after
+  the grace window so a coordinator can nudge or restart the slot instead of
+  silently leaving it parked.
 - MCP can wrap this same store later.

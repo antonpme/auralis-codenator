@@ -7,6 +7,9 @@ const crypto = require("crypto");
 const { execFileSync } = require("child_process");
 
 const STORE_NAME = ".auralis-codextrator";
+const MINUTE_MS = 60 * 1000;
+const RECOVERY_QUEUED_STALE_MS = 15 * MINUTE_MS;
+const RECOVERY_HEARTBEAT_STALE_MS = 15 * MINUTE_MS;
 
 function main() {
   const argv = process.argv.slice(2);
@@ -775,9 +778,11 @@ function sessionWorktree(store, slot) {
 
 function buildSlotRows(store, registry) {
   const slots = ["coordinator", ...Object.keys(registry.sessions || {}).sort()];
+  const tasksById = new Map(listTasks(store).map((task) => [task.task_id, task]));
   return slots.map((slot) => {
     const session = slot === "coordinator" ? registry.coordinator : registry.sessions[slot];
     const heartbeat = readHeartbeat(store, slot);
+    const currentTask = session.current_task_id ? tasksById.get(session.current_task_id) : null;
     return {
       slot,
       identity: session.identity || "",
@@ -788,6 +793,10 @@ function buildSlotRows(store, registry) {
       unread: countInbox(store, slot),
       current_task_id: session.current_task_id || null,
       current_task_status: session.current_task_status || null,
+      current_task_assigned_at: currentTask ? currentTask.assigned_at : null,
+      current_task_updated_at: currentTask ? currentTask.updated_at : null,
+      current_task_reported_at: currentTask ? currentTask.reported_at : null,
+      latest_inbox_created_at: latestInboxCreatedAt(store, slot),
       heartbeat_status: heartbeat ? heartbeat.status : (session.heartbeat_status || null),
       heartbeat_checked_at: heartbeat ? heartbeat.checked_at : (session.heartbeat_checked_at || null),
       heartbeat_automation_id: heartbeat ? heartbeat.automation_id : (session.heartbeat_automation_id || null),
@@ -811,6 +820,21 @@ function recoveryRecommendation(row) {
   if (row.heartbeat_status === "stale" || row.heartbeat_status === "failed") {
     return { action: "restart_thread", reason: `heartbeat_${row.heartbeat_status}` };
   }
+  if (row.status === "paused") {
+    return { action: "parked", reason: "slot_paused" };
+  }
+  const heartbeatOverdue = row.heartbeat_checked_at && isOlderThan(row.heartbeat_checked_at, RECOVERY_HEARTBEAT_STALE_MS);
+  const queuedTask = row.current_task_status === "queued" || row.current_task_status === "assigned";
+  const queuedSince = row.current_task_assigned_at || row.latest_inbox_created_at;
+  if (row.unread > 0 && queuedTask && isOlderThan(queuedSince, RECOVERY_QUEUED_STALE_MS)) {
+    if (!row.heartbeat_checked_at) {
+      return { action: "restart_thread", reason: "queued_inbox_no_heartbeat" };
+    }
+    if (heartbeatOverdue) {
+      return { action: "restart_thread", reason: "queued_inbox_heartbeat_overdue" };
+    }
+    return { action: "read_inbox", reason: "queued_inbox_unclaimed" };
+  }
   if (row.unread > 0 && !row.current_task_id) {
     return { action: "read_inbox", reason: "queued_inbox" };
   }
@@ -820,8 +844,8 @@ function recoveryRecommendation(row) {
   if (row.current_task_status === "reported") {
     return { action: "await_integration", reason: "task_reported" };
   }
-  if (row.status === "paused") {
-    return { action: "parked", reason: "slot_paused" };
+  if (heartbeatOverdue) {
+    return { action: "restart_thread", reason: "heartbeat_overdue" };
   }
   return { action: "ok", reason: "" };
 }
@@ -928,6 +952,23 @@ function countInbox(store, slot) {
   return listJsonFiles(dir).length;
 }
 
+function latestInboxCreatedAt(store, slot) {
+  const dir = path.join(store, "inbox", slot);
+  if (!fs.existsSync(dir)) return null;
+
+  return listJsonFiles(dir).reduce((latest, file) => {
+    try {
+      const message = readJson(path.join(dir, file));
+      const createdAt = message.created_at || null;
+      if (!createdAt) return latest;
+      if (!latest || String(createdAt).localeCompare(String(latest)) > 0) return createdAt;
+    } catch {
+      // Ignore malformed inbox records in recovery metadata.
+    }
+    return latest;
+  }, null);
+}
+
 function listJsonFiles(dir) {
   if (!fs.existsSync(dir)) return [];
   return fs.readdirSync(dir).filter((name) => name.endsWith(".json")).sort();
@@ -974,6 +1015,12 @@ function makeId() {
 
 function now() {
   return new Date().toISOString();
+}
+
+function isOlderThan(value, ageMs) {
+  const time = Date.parse(value || "");
+  if (Number.isNaN(time)) return false;
+  return Date.now() - time > ageMs;
 }
 
 function safeStamp() {
