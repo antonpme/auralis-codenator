@@ -51,7 +51,8 @@ async function run(opts) {
   });
   const selectedActions = plan.actions
     .filter((action) => action.action === "wake_slot")
-    .filter((action) => !opts.slot || action.slot === opts.slot);
+    .filter((action) => !opts.slot || action.slot === opts.slot)
+    .map((action) => withPromptOverride(action, opts.prompt));
 
   const result = {
     ok: true,
@@ -158,6 +159,32 @@ function summarizeTurnEvidence(evidence = {}) {
     finished_at: evidence.finished_at || null,
     agent_text_tail: evidence.agent_text ? evidence.agent_text.slice(-500) : ""
   };
+}
+
+function withPromptOverride(action, prompt) {
+  if (!prompt) return action;
+  const updated = {
+    ...action,
+    prompt
+  };
+  if (action.adapter_request && action.adapter_request.params) {
+    updated.adapter_request = {
+      ...action.adapter_request,
+      params: {
+        ...action.adapter_request.params,
+        input: [{ type: "text", text: prompt }]
+      }
+    };
+  } else if (action.adapter_request && action.adapter_request.params_template) {
+    updated.adapter_request = {
+      ...action.adapter_request,
+      params_template: {
+        ...action.adapter_request.params_template,
+        input: [{ type: "text", text: prompt }]
+      }
+    };
+  }
+  return updated;
 }
 
 function truthy(value) {

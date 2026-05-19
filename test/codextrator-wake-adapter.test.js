@@ -100,6 +100,22 @@ try {
   assert.strictEqual(result.data.actions[0].adapter_request.mode, "ready");
   assert.strictEqual(result.data.actions[0].adapter_request.params.threadId, "019e-test-thread");
 
+  result = runWakeAdapter([
+    "--root",
+    workspaceRoot,
+    "--json",
+    "--dry-run",
+    "--heartbeat-max-minutes",
+    "60",
+    "--prompt",
+    "Harmless custom proof prompt."
+  ]);
+  assert.strictEqual(result.data.actions[0].prompt, "Harmless custom proof prompt.");
+  assert.deepStrictEqual(result.data.actions[0].adapter_request.params.input, [{
+    type: "text",
+    text: "Harmless custom proof prompt."
+  }]);
+
   const wakeFilesAfterDryRun = fs.readdirSync(path.join(workspaceRoot, ".auralis-codextrator", "wake"));
   assert.strictEqual(wakeFilesAfterDryRun.length, 1);
 

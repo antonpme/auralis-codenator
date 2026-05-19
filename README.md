@@ -120,6 +120,9 @@ tools that are incompatible with minimal reasoning.
 The wake adapter is the first guarded sender. It reads the same MCP wake plan,
 but defaults to dry-run and will not send a `turn/start` unless `--send` is
 present and the target slot already has an explicit `app_server_thread_id`.
+For stored Desktop threads, the adapter calls `thread/resume` before
+`turn/start`; a fresh app-server process does not know old threads until they
+are resumed.
 
 Dry-run:
 
@@ -137,7 +140,8 @@ node E:\01-AURALIS\tools\auralis-codextrator\bin\codextrator-wake-adapter.js `
   --root E:\01-AURALIS `
   --slot session-01 `
   --json `
-  --send
+  --send `
+  --prompt "Harmless wake proof. Do not use tools. Reply briefly."
 ```
 
 If a send is attempted without a registered app-server thread id, the adapter

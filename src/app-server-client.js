@@ -107,6 +107,10 @@ async function sendTurnToThread(opts = {}) {
         capabilities: { experimentalApi: true }
       }, 15000);
 
+      evidence.resume = await client.request("thread/resume", {
+        threadId: opts.threadId
+      }, 30000);
+
       const params = {
         threadId: opts.threadId,
         input: [{
