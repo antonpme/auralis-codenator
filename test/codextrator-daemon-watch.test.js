@@ -95,6 +95,22 @@ try {
     root: workspaceRoot,
     send: true,
     heartbeatMaxMinutes: 60,
+    sendTurnToThread: () => {
+      throw new Error("sendTurnToThread must not be called without prompt or promptMode=work");
+    }
+  });
+  assert.strictEqual(result.ok, false);
+  assert.strictEqual(result.summary.blocked, 1);
+  assert.strictEqual(result.attempts[0].status, "blocked");
+  assert.strictEqual(result.attempts[0].reason, "explicit_prompt_mode_required");
+  assert.strictEqual(wakeFiles(storeDir).length, 1);
+
+  fs.rmSync(path.join(workspaceRoot, ".auralis-codextrator"), { recursive: true, force: true });
+  storeDir = setupSlot({ threadId: "thread-session-04" });
+  result = runDaemonWatchOnce({
+    root: workspaceRoot,
+    send: true,
+    heartbeatMaxMinutes: 60,
     prompt: "Harmless injected proof prompt.",
     sendTurnToThread: (input) => ({
       ok: true,
@@ -112,6 +128,32 @@ try {
   assert.strictEqual(result.summary.sent, 1);
   assert.strictEqual(result.attempts[0].status, "completed");
   assert.strictEqual(result.attempts[0].prompt, "Harmless injected proof prompt.");
+  assert.strictEqual(wakeFiles(storeDir).length, 1);
+
+  fs.rmSync(path.join(workspaceRoot, ".auralis-codextrator"), { recursive: true, force: true });
+  storeDir = setupSlot({ threadId: "thread-session-04" });
+  result = runDaemonWatchOnce({
+    root: workspaceRoot,
+    send: true,
+    heartbeatMaxMinutes: 60,
+    promptMode: "work",
+    sendTurnToThread: (input) => ({
+      ok: input.prompt.includes("If and only if a task.assign is present"),
+      reason: "fake_completed",
+      evidence: {
+        thread_id: input.threadId,
+        turn_id: "fake-work-turn",
+        url: "ws://127.0.0.1:9999",
+        finished_at: "2026-05-19T10:05:00.000Z",
+        agent_text: "OK"
+      }
+    })
+  });
+  assert.strictEqual(result.ok, true);
+  assert.strictEqual(result.summary.sent, 1);
+  assert.match(result.attempts[0].prompt, /Codextrator work wake for session-04/);
+  assert.match(result.attempts[0].prompt, /If and only if a task\.assign is present/);
+  assert.match(result.attempts[0].prompt, /Do not touch live\/v1 roots/);
   assert.strictEqual(wakeFiles(storeDir).length, 1);
 
   console.log("codextrator-daemon-watch.test.js: PASS");

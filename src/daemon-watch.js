@@ -3,6 +3,7 @@
 const path = require("path");
 const store = require("./store.js");
 const { sendTurnToThread } = require("./app-server-client.js");
+const { buildWorkPrompt } = require("./wake-prompts.js");
 
 function runDaemonWatchOnce(input = {}) {
   const root = path.resolve(input.root || process.env.AURALIS_CODEXTRATOR_ROOT || process.cwd());
@@ -18,7 +19,7 @@ function runDaemonWatchOnce(input = {}) {
   const actions = plan.actions
     .filter((action) => action.action === "wake_slot")
     .filter((action) => slots.size === 0 || slots.has(action.slot))
-    .map((action) => withPromptOverride(action, input.prompt));
+    .map((action) => withSelectedPrompt(action, input));
 
   const result = {
     ok: true,
@@ -73,6 +74,20 @@ function runDaemonWatchOnce(input = {}) {
 
     if (!send) {
       result.summary.planned += 1;
+      continue;
+    }
+
+    if (!hasExplicitSendPrompt(input)) {
+      result.summary.blocked += 1;
+      result.attempts.push(store.recordWakeAttempt(storeDir, {
+        slot: action.slot,
+        action: action.action,
+        adapter: "codex-app-server",
+        status: "blocked",
+        reason: "explicit_prompt_mode_required",
+        prompt: action.prompt
+      }));
+      result.ok = false;
       continue;
     }
 
@@ -111,7 +126,7 @@ async function runDaemonWatchOnceAsync(input = {}) {
   const actions = plan.actions
     .filter((action) => action.action === "wake_slot")
     .filter((action) => slots.size === 0 || slots.has(action.slot))
-    .map((action) => withPromptOverride(action, input.prompt));
+    .map((action) => withSelectedPrompt(action, input));
 
   const result = {
     ok: true,
@@ -166,6 +181,20 @@ async function runDaemonWatchOnceAsync(input = {}) {
 
     if (!send) {
       result.summary.planned += 1;
+      continue;
+    }
+
+    if (!hasExplicitSendPrompt(input)) {
+      result.summary.blocked += 1;
+      result.attempts.push(store.recordWakeAttempt(storeDir, {
+        slot: action.slot,
+        action: action.action,
+        adapter: "codex-app-server",
+        status: "blocked",
+        reason: "explicit_prompt_mode_required",
+        prompt: action.prompt
+      }));
+      result.ok = false;
       continue;
     }
 
@@ -225,6 +254,20 @@ function withPromptOverride(action, prompt) {
     };
   }
   return updated;
+}
+
+function withSelectedPrompt(action, input) {
+  if (input.prompt) return withPromptOverride(action, input.prompt);
+  if (isWorkPromptMode(input)) return withPromptOverride(action, buildWorkPrompt(action));
+  return action;
+}
+
+function hasExplicitSendPrompt(input) {
+  return Boolean(input.prompt || isWorkPromptMode(input));
+}
+
+function isWorkPromptMode(input) {
+  return input.promptMode === "work" || input["prompt-mode"] === "work";
 }
 
 function summarizeTurnEvidence(evidence = {}) {

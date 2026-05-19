@@ -24,6 +24,7 @@ async function main() {
       slot: opts.slot,
       slots: opts.slots,
       prompt: opts.prompt,
+      promptMode: opts["prompt-mode"] || opts.promptMode,
       port: opts.port,
       url: opts.url,
       effort: opts.effort,
@@ -91,12 +92,13 @@ Usage:
   codextrator-daemon-watch [--root PATH] [--json] [--once]
                            [--loop --interval-ms N --max-cycles N]
                            [--slots session-01,session-02] [--send]
-                           [--prompt TEXT]
+                           [--prompt TEXT | --prompt-mode work]
 
 Default mode is one dry-run cycle. It reads Codextrator MCP wake state and
 prints planned app-server wakes without mutating inboxes or tasks. With --send,
 it records wake attempts and sends ready actions through app-server using
-thread/resume followed by turn/start.
+thread/resume followed by turn/start. Send mode requires either an explicit
+--prompt for proof/manual use or --prompt-mode work for guarded task wakeups.
 `);
 }
 

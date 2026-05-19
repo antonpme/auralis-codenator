@@ -208,7 +208,10 @@ node E:\01-AURALIS\tools\auralis-codextrator\bin\codextrator-daemon-watch.js `
 ```
 
 Send mode is also opt-in and uses the proven app-server sequence:
-`thread/resume` followed by `turn/start`.
+`thread/resume` followed by `turn/start`. A real send must include either an
+explicit `--prompt` for proof/manual use or `--prompt-mode work` for guarded
+task wakeups; otherwise the daemon records
+`reason=explicit_prompt_mode_required` and does not call app-server.
 
 ```powershell
 node E:\01-AURALIS\tools\auralis-codextrator\bin\codextrator-daemon-watch.js `
@@ -218,6 +221,22 @@ node E:\01-AURALIS\tools\auralis-codextrator\bin\codextrator-daemon-watch.js `
   --prompt "Harmless wake proof. Do not use tools. Reply briefly." `
   --json
 ```
+
+For real task wakeups, use the guarded work prompt:
+
+```powershell
+node E:\01-AURALIS\tools\auralis-codextrator\bin\codextrator-daemon-watch.js `
+  --root E:\01-AURALIS `
+  --slots session-04 `
+  --send `
+  --prompt-mode work `
+  --json
+```
+
+The work prompt tells the slot to read its inbox, claim only a delivered
+`task.assign`, stay inside its registered worktree, avoid live/v1 roots and
+other slots, run focused tests, commit, and report the commit back to the
+coordinator.
 
 The daemon watch does not integrate commits, assign tasks, clear inboxes, or
 mutate Desktop automations. It only reads MCP wake state, sends ready wake
