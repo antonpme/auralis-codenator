@@ -97,6 +97,9 @@ async function callTool(id, name, args) {
     assert.ok(toolNames.includes("report_commit"));
     assert.ok(toolNames.includes("plan_wake"));
     assert.ok(toolNames.includes("record_wake_attempt"));
+    assert.ok(toolNames.includes("get_focus_board"));
+    assert.ok(toolNames.includes("upsert_milestone"));
+    assert.ok(toolNames.includes("upsert_lane"));
 
     await callTool(3, "register_slot", {
       slot: "session-01",
@@ -113,11 +116,28 @@ async function callTool(id, name, args) {
       run_id: "mcp-test-run"
     });
 
+    await callTool(108, "upsert_milestone", {
+      milestone_id: "mcp-foundation",
+      title: "MCP foundation",
+      status: "active"
+    });
+
+    await callTool(109, "upsert_lane", {
+      lane_id: "memory",
+      title: "Memory",
+      owner_slot: "session-01",
+      project: "demo-project"
+    });
+
     await callTool(4, "create_task", {
       slot: "session-01",
       task_id: "mcp-task-1",
       title: "MCP task",
-      message: "Use the MCP inbox and task state."
+      message: "Use the MCP inbox and task state.",
+      milestone_id: "mcp-foundation",
+      lane_id: "memory",
+      acceptance_criteria: ["worker sees board snapshot"],
+      required_receipts: ["focused_tests"]
     });
 
     let status = await callTool(5, "get_status", {});
@@ -172,6 +192,16 @@ async function callTool(id, name, args) {
     assert.strictEqual(wakeAction.adapter_request.mode, "ready");
     assert.strictEqual(wakeAction.adapter_request.params.threadId, "019e-test-thread");
     assert.deepStrictEqual(wakeAction.adapter_request.params.input, [{ type: "text", text: wakeAction.prompt }]);
+
+    const board = await callTool(110, "get_focus_board", {
+      viewer_slot: "session-01"
+    });
+    assert.strictEqual(board.board.name, "Auralis Codextrator Focus Board");
+    assert.strictEqual(board.visibility.role, "worker");
+    assert.deepStrictEqual(board.visibility.own_task_ids, ["mcp-task-1"]);
+    assert.strictEqual(board.milestones[0].milestone_id, "mcp-foundation");
+    assert.strictEqual(board.lanes.find((lane) => lane.lane_id === "memory").owner_slot, "session-01");
+    assert.strictEqual(board.tasks.find((task) => task.task_id === "mcp-task-1").required_receipts[0], "focused_tests");
 
     const wakeAttempt = await callTool(102, "record_wake_attempt", {
       slot: "session-01",

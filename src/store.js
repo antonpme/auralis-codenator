@@ -60,6 +60,7 @@ function ensureStore(root, agent = "coordinator") {
   const store = storePath(root);
   for (const name of [
     "archive",
+    "board",
     "cursors",
     "heartbeat",
     "hooks",
@@ -241,10 +242,22 @@ function normalizeTask(input) {
     commit: input.commit || null,
     tests: input.tests || [],
     blockers: input.blockers || [],
+    milestone_id: input.milestone_id || input.milestone || null,
+    lane_id: input.lane_id || input.lane || null,
+    dependency_ids: normalizeStringArray(input.dependency_ids || input.dependencies),
+    acceptance_criteria: normalizeStringArray(input.acceptance_criteria),
+    required_receipts: normalizeStringArray(input.required_receipts),
+    visible_progress_summary: input.visible_progress_summary || "",
     next_policy: input.next_policy || "claim_via_mcp_then_report_commit",
     created_at: createdAt,
     updated_at: input.updated_at || createdAt
   };
+}
+
+function normalizeStringArray(value) {
+  if (!value) return [];
+  if (Array.isArray(value)) return value.map((item) => String(item)).filter(Boolean);
+  return String(value).split(",").map((item) => item.trim()).filter(Boolean);
 }
 
 function makeTaskId(slot) {
@@ -293,7 +306,13 @@ function createTask(store, input) {
     created_by: input.created_by || "coordinator",
     project: input.project || session.project || "",
     branch: input.branch || session.branch || "",
-    worktree: input.worktree ? normalizePath(input.worktree) : (session.worktree || "")
+    worktree: input.worktree ? normalizePath(input.worktree) : (session.worktree || ""),
+    milestone_id: input.milestone_id || input.milestone,
+    lane_id: input.lane_id || input.lane,
+    dependency_ids: input.dependency_ids || input.dependencies,
+    acceptance_criteria: input.acceptance_criteria,
+    required_receipts: input.required_receipts,
+    visible_progress_summary: input.visible_progress_summary
   });
   writeTask(store, task);
   updateSlotTask(store, input.slot, task.task_id, task.status);
@@ -313,6 +332,91 @@ function createTask(store, input) {
     }
   });
   return { task, message };
+}
+
+function focusBoardPath(store) {
+  return path.join(store, "board", "focus-board.json");
+}
+
+function defaultFocusBoard() {
+  return {
+    version: 1,
+    name: "Auralis Codextrator Focus Board",
+    description: "Shared backlog, milestones, lanes, assignments, reports, and integration receipts for Codextrator focus slots.",
+    milestones: [],
+    lanes: [],
+    created_at: now(),
+    updated_at: now()
+  };
+}
+
+function readFocusBoard(store) {
+  const file = focusBoardPath(store);
+  if (!fs.existsSync(file)) {
+    const board = defaultFocusBoard();
+    writeJson(file, board);
+    return board;
+  }
+  const board = readJson(file);
+  return {
+    ...defaultFocusBoard(),
+    ...board,
+    milestones: Array.isArray(board.milestones) ? board.milestones : [],
+    lanes: Array.isArray(board.lanes) ? board.lanes : []
+  };
+}
+
+function writeFocusBoard(store, board) {
+  writeJson(focusBoardPath(store), {
+    ...board,
+    updated_at: now()
+  });
+}
+
+function upsertMilestone(store, input) {
+  const milestoneId = input.milestone_id || input.id;
+  if (!milestoneId) throw new Error("milestone_id is required");
+  const board = readFocusBoard(store);
+  const previous = board.milestones.find((item) => item.milestone_id === milestoneId) || {};
+  const milestone = {
+    milestone_id: milestoneId,
+    title: input.title || previous.title || milestoneId,
+    status: input.status || previous.status || "planned",
+    description: input.description || previous.description || "",
+    order: input.order !== undefined ? Number(input.order) : (previous.order || 0),
+    created_at: previous.created_at || now(),
+    updated_at: now()
+  };
+  board.milestones = [
+    ...board.milestones.filter((item) => item.milestone_id !== milestoneId),
+    milestone
+  ].sort((left, right) => Number(left.order || 0) - Number(right.order || 0) || left.milestone_id.localeCompare(right.milestone_id));
+  writeFocusBoard(store, board);
+  return milestone;
+}
+
+function upsertLane(store, input) {
+  const laneId = input.lane_id || input.id;
+  if (!laneId) throw new Error("lane_id is required");
+  const board = readFocusBoard(store);
+  const previous = board.lanes.find((item) => item.lane_id === laneId) || {};
+  const lane = {
+    lane_id: laneId,
+    title: input.title || previous.title || laneId,
+    owner_slot: input.owner_slot || input.slot || previous.owner_slot || "",
+    project: input.project || previous.project || "",
+    status: input.status || previous.status || "active",
+    description: input.description || previous.description || "",
+    order: input.order !== undefined ? Number(input.order) : (previous.order || 0),
+    created_at: previous.created_at || now(),
+    updated_at: now()
+  };
+  board.lanes = [
+    ...board.lanes.filter((item) => item.lane_id !== laneId),
+    lane
+  ].sort((left, right) => Number(left.order || 0) - Number(right.order || 0) || left.lane_id.localeCompare(right.lane_id));
+  writeFocusBoard(store, board);
+  return lane;
 }
 
 function updateTask(store, taskId, input) {
@@ -748,6 +852,180 @@ function buildStatus(store) {
   };
 }
 
+function buildFocusBoardSnapshot(store, input = {}) {
+  const viewerSlot = input.viewer_slot || input.slot || "coordinator";
+  const board = readFocusBoard(store);
+  const status = buildStatus(store);
+  const tasks = listTasks(store).map((task) => summarizeTask(task));
+  const assignments = Object.fromEntries(status.slots
+    .filter((slot) => slot.slot !== "coordinator")
+    .map((slot) => [slot.slot, {
+      slot: slot.slot,
+      project: slot.project,
+      focus: slot.focus,
+      branch: slot.branch,
+      current_task_id: slot.current_task_id,
+      current_task_status: slot.current_task_status,
+      unread: slot.unread,
+      heartbeat_status: slot.heartbeat_status,
+      heartbeat_checked_at: slot.heartbeat_checked_at
+    }]));
+  const integrationReceipts = tasks
+    .filter((task) => task.commit && (task.status === "integrated" || task.status === "done"))
+    .map((task) => ({
+      task_id: task.task_id,
+      slot: task.slot,
+      commit: task.commit,
+      integrated_at: task.integrated_at,
+      milestone_id: task.milestone_id,
+      lane_id: task.lane_id
+    }));
+  const ownTaskIds = viewerSlot === "coordinator"
+    ? []
+    : tasks
+      .filter((task) => task.slot === viewerSlot && task.status !== "integrated" && task.status !== "done")
+      .map((task) => task.task_id);
+
+  return {
+    version: 1,
+    generated_at: now(),
+    board: {
+      name: board.name,
+      description: board.description,
+      updated_at: board.updated_at
+    },
+    visibility: {
+      viewer_slot: viewerSlot,
+      role: viewerSlot === "coordinator" ? "coordinator" : "worker",
+      can_manage_backlog: viewerSlot === "coordinator",
+      can_read_all_progress: true,
+      can_report_own_work: viewerSlot !== "coordinator",
+      own_task_ids: ownTaskIds
+    },
+    progress: {
+      status_counts: countBy(tasks, (task) => task.status || "unknown"),
+      total_tasks: tasks.length,
+      active_slots: Object.keys(assignments).length
+    },
+    milestones: buildMilestoneSummaries(board, tasks),
+    lanes: buildLaneSummaries(board, status, tasks),
+    tasks,
+    assignments,
+    reports: listReports(store),
+    integration_receipts: integrationReceipts
+  };
+}
+
+function summarizeTask(task) {
+  return {
+    task_id: task.task_id,
+    title: task.title,
+    subject: task.subject,
+    status: task.status,
+    slot: task.slot,
+    project: task.project,
+    branch: task.branch,
+    worktree: task.worktree,
+    milestone_id: task.milestone_id || null,
+    lane_id: task.lane_id || null,
+    dependencies: normalizeStringArray(task.dependency_ids),
+    acceptance_criteria: normalizeStringArray(task.acceptance_criteria),
+    required_receipts: normalizeStringArray(task.required_receipts),
+    visible_progress_summary: task.visible_progress_summary || "",
+    commit: task.commit || null,
+    tests: task.tests || [],
+    blockers: task.blockers || [],
+    assigned_at: task.assigned_at || null,
+    started_at: task.started_at || null,
+    reported_at: task.reported_at || null,
+    integrated_at: task.integrated_at || null,
+    updated_at: task.updated_at || null
+  };
+}
+
+function buildMilestoneSummaries(board, tasks) {
+  const knownMilestones = new Map(board.milestones.map((milestone) => [milestone.milestone_id, milestone]));
+  for (const task of tasks) {
+    if (task.milestone_id && !knownMilestones.has(task.milestone_id)) {
+      knownMilestones.set(task.milestone_id, {
+        milestone_id: task.milestone_id,
+        title: task.milestone_id,
+        status: "implicit",
+        description: "",
+        order: 0
+      });
+    }
+  }
+  return [...knownMilestones.values()]
+    .sort((left, right) => Number(left.order || 0) - Number(right.order || 0) || left.milestone_id.localeCompare(right.milestone_id))
+    .map((milestone) => {
+      const milestoneTasks = tasks.filter((task) => task.milestone_id === milestone.milestone_id);
+      return {
+        ...milestone,
+        task_counts: countBy(milestoneTasks, (task) => task.status || "unknown"),
+        task_ids: milestoneTasks.map((task) => task.task_id)
+      };
+    });
+}
+
+function buildLaneSummaries(board, status, tasks) {
+  const lanes = new Map(board.lanes.map((lane) => [lane.lane_id, lane]));
+  for (const slot of status.slots) {
+    if (slot.slot === "coordinator") continue;
+    const existing = [...lanes.values()].find((lane) => lane.owner_slot === slot.slot);
+    if (!existing) {
+      lanes.set(slot.slot, {
+        lane_id: slot.slot,
+        title: slot.focus || slot.slot,
+        owner_slot: slot.slot,
+        project: slot.project || "",
+        status: slot.status || "active",
+        description: "",
+        order: 0
+      });
+    }
+  }
+  return [...lanes.values()]
+    .sort((left, right) => Number(left.order || 0) - Number(right.order || 0) || left.lane_id.localeCompare(right.lane_id))
+    .map((lane) => {
+      const laneTasks = tasks.filter((task) => task.lane_id === lane.lane_id || (!task.lane_id && task.slot === lane.owner_slot));
+      return {
+        ...lane,
+        task_counts: countBy(laneTasks, (task) => task.status || "unknown"),
+        task_ids: laneTasks.map((task) => task.task_id)
+      };
+    });
+}
+
+function countBy(items, fn) {
+  return items.reduce((counts, item) => {
+    const key = fn(item);
+    counts[key] = (counts[key] || 0) + 1;
+    return counts;
+  }, {});
+}
+
+function listReports(store) {
+  const dir = path.join(store, "reports");
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir)
+    .filter((name) => name.endsWith(".json") && name !== "last-reported.json")
+    .sort()
+    .map((name) => {
+      const report = readJson(path.join(dir, name));
+      return {
+        id: report.id || name,
+        slot: report.slot || "",
+        sha: report.sha || "",
+        branch: report.branch || "",
+        subject: report.subject || "",
+        changed: report.changed || [],
+        worktree: report.worktree || "",
+        created_at: report.created_at || null
+      };
+    });
+}
+
 function isOlderThan(value, ageMs, nowValue = Date.now()) {
   const time = Date.parse(value || "");
   if (Number.isNaN(time)) return false;
@@ -762,6 +1040,9 @@ module.exports = {
   resolveStoreRoot,
   registerSlot,
   readInbox,
+  upsertMilestone,
+  upsertLane,
+  buildFocusBoardSnapshot,
   createTask,
   claimNextTask,
   updateTask,

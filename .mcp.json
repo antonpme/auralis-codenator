@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "auralis-codextrator": {
+      "command": "node",
+      "args": [
+        "E:/01-AURALIS/tools/auralis-codextrator/src/server.js",
+        "--root",
+        "E:/01-AURALIS/.codextrator-mcp-root",
+        "--agent",
+        "elian"
+      ],
+      "note": "Local Auralis Codextrator MCP server. Uses the durable MCP ledger at E:/01-AURALIS/.codextrator-mcp-root and exposes Focus Board, task, inbox, report, heartbeat, and wake-planning tools."
+    }
+  }
+}

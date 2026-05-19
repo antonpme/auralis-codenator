@@ -106,6 +106,48 @@ function tools() {
       }
     },
     {
+      name: "get_focus_board",
+      description: "Read the shared Codextrator Focus Board snapshot. Coordinator and workers can see all milestones, lanes, tasks, reports, and integration receipts; only coordinator should manage backlog.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          viewer_slot: { type: "string" }
+        }
+      }
+    },
+    {
+      name: "upsert_milestone",
+      description: "Coordinator-only: create or update a Focus Board milestone for shared progress visibility.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          milestone_id: { type: "string" },
+          title: { type: "string" },
+          status: { type: "string" },
+          description: { type: "string" },
+          order: { type: "number" }
+        },
+        required: ["milestone_id"]
+      }
+    },
+    {
+      name: "upsert_lane",
+      description: "Coordinator-only: create or update a Focus Board module lane and owner slot.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          lane_id: { type: "string" },
+          title: { type: "string" },
+          owner_slot: { type: "string" },
+          project: { type: "string" },
+          status: { type: "string" },
+          description: { type: "string" },
+          order: { type: "number" }
+        },
+        required: ["lane_id"]
+      }
+    },
+    {
       name: "create_task",
       description: "Create a queued task for a slot and deliver a task.assign message through the MCP ledger.",
       inputSchema: {
@@ -118,7 +160,13 @@ function tools() {
           message: { type: "string" },
           project: { type: "string" },
           branch: { type: "string" },
-          worktree: { type: "string" }
+          worktree: { type: "string" },
+          milestone_id: { type: "string" },
+          lane_id: { type: "string" },
+          dependency_ids: { type: "array", items: { type: "string" } },
+          acceptance_criteria: { type: "array", items: { type: "string" } },
+          required_receipts: { type: "array", items: { type: "string" } },
+          visible_progress_summary: { type: "string" }
         },
         required: ["slot", "title", "message"]
       }
@@ -221,7 +269,7 @@ async function main() {
   log(`[auralis-codextrator] Root: ${path.resolve(config.root)}`);
 
   const mcp = new Server(
-    { name: "auralis-codextrator", version: "0.2.0" },
+    { name: "auralis-codextrator", version: "0.3.0" },
     {
       capabilities: { tools: {} },
       instructions: [
@@ -262,6 +310,12 @@ async function main() {
               messages
             });
           }
+        case "get_focus_board":
+          return ok(store.buildFocusBoardSnapshot(storeDir, args));
+        case "upsert_milestone":
+          return ok({ milestone: store.upsertMilestone(storeDir, args) });
+        case "upsert_lane":
+          return ok({ lane: store.upsertLane(storeDir, args) });
         case "create_task":
           return ok(store.createTask(storeDir, {
             ...args,

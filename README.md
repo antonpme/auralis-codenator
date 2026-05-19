@@ -4,7 +4,7 @@ Parallel session orchestration for Codex Desktop.
 
 `auralis-codextrator` is a small local utility for coordinating multiple
 focused Codex Desktop sessions across projects, worktrees, inboxes, hooks, and
-commit reports.
+commit reports, and a shared Focus Board.
 
 It is intentionally not an agent identity system. A session slot such as
 `session-01` is only a technical focus slot. Identity, project, focus, worktree,
@@ -16,6 +16,8 @@ and branch live in the registry metadata.
 - Per-session inboxes.
 - Lightweight direct messages.
 - Durable task records.
+- Shared Focus Board with milestones, lanes, assignments, reports, and
+  integration receipts.
 - Slot registry view with current task and heartbeat state.
 - Structured message ledger.
 - Heartbeat health records and recovery summary.
@@ -24,6 +26,19 @@ and branch live in the registry metadata.
 - Codex hook entrypoint for post-tool commit detection.
 - No cloud dependency.
 - No runtime dependency beyond Node.js.
+
+## Codex Plugin Bundle
+
+This repository now carries a local Codex plugin bundle:
+
+- `.codex-plugin/plugin.json`: plugin metadata.
+- `.mcp.json`: local MCP server wiring for the durable Codextrator ledger.
+- `skills/codextrator/SKILL.md`: coordinator and worker operating guidance.
+
+The bundle is local-path oriented for Ton's Auralis host. After connecting it as
+a local Codex plugin and restarting Codex, the `auralis-codextrator` MCP server
+exposes the same ledger, task, wake, report, and Focus Board tools from inside
+Codex.
 
 ## MCP Mode
 
@@ -34,7 +49,7 @@ Run it with:
 
 ```powershell
 node E:\01-AURALIS\tools\auralis-codextrator\src\server.js `
-  --root E:\01-AURALIS `
+  --root E:\01-AURALIS\.codextrator-mcp-root `
   --agent elian
 ```
 
@@ -43,17 +58,23 @@ Suggested Codex MCP config:
 ```toml
 [mcp_servers.auralis-codextrator]
 command = "node"
-args = ["E:/01-AURALIS/tools/auralis-codextrator/src/server.js", "--root", "E:/01-AURALIS", "--agent", "elian"]
+args = ["E:/01-AURALIS/tools/auralis-codextrator/src/server.js", "--root", "E:/01-AURALIS/.codextrator-mcp-root", "--agent", "elian"]
 ```
 
 MCP tools:
 
 - `get_status`: read slots, unread cursor counts, heartbeat, and task state.
+- `get_focus_board`: read the shared backlog, milestone, lane, assignment,
+  report, and integration snapshot.
+- `upsert_milestone`: coordinator-only milestone create/update.
+- `upsert_lane`: coordinator-only module lane create/update.
 - `register_slot`: create or refresh a stable focus slot. It can also store an
   explicit `app_server_thread_id` for a Codex app-server wake adapter.
 - `send_message`: append a durable ledger message.
 - `read_inbox`: read unread messages through a cursor without deleting files.
-- `create_task`: queue a task and deliver a `task.assign` message.
+- `create_task`: queue a task and deliver a `task.assign` message. Tasks can
+  carry `milestone_id`, `lane_id`, `dependency_ids`, `acceptance_criteria`,
+  `required_receipts`, and a visible progress summary for board use.
 - `claim_next_task`: claim the next queued task and mark it active.
 - `update_task`: update status, commit, tests, or blockers.
 - `report_commit`: report a focus-slot commit to the coordinator.

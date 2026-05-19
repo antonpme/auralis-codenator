@@ -1,0 +1,3 @@
+display_name: Auralis Codextrator
+short_description: Coordinate Codex focus slots with a shared Focus Board.
+default_prompt: Use Auralis Codextrator to show the Focus Board and assign the next safe task.

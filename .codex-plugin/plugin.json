@@ -1,0 +1,43 @@
+{
+  "name": "auralis-codextrator",
+  "version": "0.3.0",
+  "description": "Coordinate parallel Codex focus slots through a shared MCP ledger, app-server wake adapter, and Focus Board.",
+  "author": {
+    "name": "Auralis"
+  },
+  "homepage": "https://github.com/antonpme/auralis-codextrator",
+  "repository": "https://github.com/antonpme/auralis-codextrator",
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "coordination",
+    "mcp",
+    "focus-board",
+    "parallel-agents",
+    "app-server"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Auralis Codextrator",
+    "shortDescription": "Coordinate Codex focus slots with a shared board and MCP ledger",
+    "longDescription": "Auralis Codextrator provides a local MCP server, app-server wake adapter, and Focus Board for coordinating parallel Codex focus slots. Coordinators manage milestones, lanes, assignments, reports, and integration receipts while worker slots read the full progress snapshot and report their own work.",
+    "developerName": "Auralis",
+    "category": "Coding",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/antonpme/auralis-codextrator",
+    "privacyPolicyURL": "https://github.com/antonpme/auralis-codextrator",
+    "termsOfServiceURL": "https://github.com/antonpme/auralis-codextrator",
+    "defaultPrompt": [
+      "Use Auralis Codextrator to coordinate focus slots.",
+      "Show the Codextrator Focus Board snapshot.",
+      "Assign the next safe Codextrator task."
+    ],
+    "brandColor": "#2563EB",
+    "screenshots": []
+  }
+}
