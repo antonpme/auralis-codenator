@@ -123,7 +123,8 @@ async function run(opts) {
       prompt: action.prompt,
       effort: opts.effort || "xhigh",
       approvalPolicy: opts["approval-policy"],
-      timeoutMs: opts["timeout-ms"]
+      timeoutMs: opts["timeout-ms"],
+      approveCodextratorMcp: true
     });
 
     const attempt = store.recordWakeAttempt(storeDir, {
@@ -133,7 +134,7 @@ async function run(opts) {
       status: turn.ok ? "completed" : "failed",
       reason: turn.reason,
       prompt: action.prompt,
-      result: turn.ok ? summarizeTurnEvidence(turn.evidence) : null,
+      result: turn.evidence ? summarizeTurnEvidence(turn.evidence) : null,
       error: turn.ok ? null : (turn.evidence && turn.evidence.error) || turn.reason
     });
     result.attempts.push(attempt);
@@ -157,7 +158,13 @@ function summarizeTurnEvidence(evidence = {}) {
     turn_id: evidence.turn_id || null,
     url: evidence.url || null,
     finished_at: evidence.finished_at || null,
-    agent_text_tail: evidence.agent_text ? evidence.agent_text.slice(-500) : ""
+    agent_text_tail: evidence.agent_text ? evidence.agent_text.slice(-500) : "",
+    timeout_error: evidence.timeout_error || null,
+    interrupt: evidence.interrupt || null,
+    interrupt_error: evidence.interrupt_error || null,
+    elicitation_responses_tail: Array.isArray(evidence.elicitation_responses) ? evidence.elicitation_responses.slice(-6) : [],
+    events_tail: Array.isArray(evidence.events) ? evidence.events.slice(-12) : [],
+    stderr_tail: Array.isArray(evidence.stderr_tail) ? evidence.stderr_tail.slice(-6) : []
   };
 }
 

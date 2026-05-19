@@ -14,7 +14,7 @@
   },
   "scripts": {
     "smoke": "node ./bin/codextrator.js --help",
-    "test": "node ./test/codextrator-cli.test.js && node ./test/codextrator-mcp.test.js && node ./test/codextrator-watch.test.js && node ./test/codextrator-wake-adapter.test.js && node ./test/codextrator-app-thread-discovery.test.js && node ./test/codextrator-daemon-watch.test.js"
+    "test": "node ./test/codextrator-cli.test.js && node ./test/codextrator-mcp.test.js && node ./test/codextrator-watch.test.js && node ./test/codextrator-wake-adapter.test.js && node ./test/codextrator-app-thread-discovery.test.js && node ./test/codextrator-daemon-watch.test.js && node ./test/codextrator-app-server-client.test.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1"

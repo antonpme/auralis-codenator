@@ -5,6 +5,16 @@ const os = require("os");
 const path = require("path");
 const { spawn, spawnSync } = require("child_process");
 
+const CODEXTRATOR_MCP_SERVER = "auralis-codextrator";
+const CODEXTRATOR_MCP_TOOLS = new Set([
+  "claim_next_task",
+  "get_status",
+  "read_inbox",
+  "record_heartbeat",
+  "report_commit",
+  "update_task"
+]);
+
 function makeAppServerUrl(port) {
   return `ws://127.0.0.1:${Number(port || 4575)}`;
 }
@@ -61,7 +71,7 @@ async function runProof(opts = {}) {
 
     evidence.turn_id = turnStart.turn.id;
     evidence.turn_started_status = turnStart.turn.status;
-    const completed = await client.waitCompleted(threadId, timeoutMs);
+    const completed = await client.waitCompleted(threadId, timeoutMs, evidence.turn_id);
     evidence.completed = completed;
     evidence.finished_at = new Date().toISOString();
     const turnCompleted = completed.params && completed.params.turnStatus === "completed";
@@ -90,6 +100,9 @@ async function sendTurnToThread(opts = {}) {
     command: `codex app-server --listen ${url}`
   });
   evidence.thread_id = opts.threadId;
+  evidence.client_options = {
+    approveCodextratorMcp: opts.approveCodextratorMcp === true
+  };
 
   try {
     return await withAppServer({
@@ -126,7 +139,7 @@ async function sendTurnToThread(opts = {}) {
       const turnStart = await client.request("turn/start", params, 30000);
       evidence.turn_id = turnStart.turn.id;
       evidence.turn_started_status = turnStart.turn.status;
-      const completed = await client.waitCompleted(opts.threadId, timeoutMs);
+      const completed = await waitCompletedOrInterrupt(client, opts.threadId, evidence.turn_id, timeoutMs, evidence, opts);
       evidence.completed = completed;
       evidence.finished_at = new Date().toISOString();
       const turnCompleted = completed.params && completed.params.turnStatus === "completed";
@@ -151,9 +164,29 @@ function makeEvidence(input) {
     command: input.command,
     events: [],
     responses: {},
+    elicitation_responses: [],
     agent_text: "",
     stderr_tail: []
   };
+}
+
+async function waitCompletedOrInterrupt(client, threadId, turnId, timeoutMs, evidence, opts = {}) {
+  try {
+    return await client.waitCompleted(threadId, timeoutMs, turnId);
+  } catch (error) {
+    evidence.timeout_error = error.message;
+    if (turnId && opts.interruptOnTimeout !== false) {
+      try {
+        evidence.interrupt = await client.request("turn/interrupt", {
+          threadId,
+          turnId
+        }, Number(opts.interruptTimeoutMs || 15000));
+      } catch (interruptError) {
+        evidence.interrupt_error = interruptError.stack || interruptError.message;
+      }
+    }
+    throw error;
+  }
 }
 
 async function withAppServer(input, callback) {
@@ -218,6 +251,7 @@ async function connectWithRetry(url, timeoutMs) {
 function makeClient(ws, evidence) {
   let nextId = 1;
   const pending = new Map();
+  const opts = evidence.client_options || {};
   ws.addEventListener("message", (event) => {
     let message;
     try {
@@ -231,11 +265,23 @@ function makeClient(ws, evidence) {
       }
       evidence.events.push({
         at: new Date().toISOString(),
+        id: hasJsonRpcId(message) ? message.id : null,
         method: message.method,
         params: summarizeParams(message.method, message.params)
       });
+      if (message.method === "mcpServer/elicitation/request" && hasJsonRpcId(message)) {
+        const response = decideMcpElicitationResponse(message.params, opts);
+        evidence.elicitation_responses.push({
+          at: new Date().toISOString(),
+          id: message.id,
+          method: message.method,
+          decision: response ? response.action : "unhandled",
+          params: summarizeParams(message.method, message.params)
+        });
+        if (response) ws.send(JSON.stringify({ id: message.id, result: response }));
+      }
     }
-    if (message.id && pending.has(message.id)) {
+    if (hasJsonRpcId(message) && pending.has(message.id)) {
       const item = pending.get(message.id);
       pending.delete(message.id);
       evidence.responses[item.method] = message.error
@@ -268,14 +314,15 @@ function makeClient(ws, evidence) {
         });
       });
     },
-    waitCompleted(threadId, timeoutMs) {
+    waitCompleted(threadId, timeoutMs, turnId = null) {
       const started = Date.now();
       return new Promise((resolve, reject) => {
         const interval = setInterval(() => {
           const found = evidence.events.find((item) => (
             item.method === "turn/completed" &&
             item.params &&
-            item.params.threadId === threadId
+            item.params.threadId === threadId &&
+            (!turnId || item.params.turnId === turnId)
           ));
           if (found) {
             clearInterval(interval);
@@ -292,6 +339,19 @@ function makeClient(ws, evidence) {
 
 function summarizeParams(method, params) {
   if (!params || typeof params !== "object") return params || null;
+  if (method === "mcpServer/elicitation/request") {
+    const toolApproval = parseMcpToolApproval(params);
+    return {
+      threadId: params.threadId || null,
+      turnId: params.turnId || null,
+      serverName: params.serverName || null,
+      mode: params.mode || null,
+      message: params.message || null,
+      url: params.url || null,
+      meta: params.meta || params._meta || null,
+      tool: toolApproval ? toolApproval.tool : null
+    };
+  }
   if (params.thread) {
     return {
       threadId: params.thread.id,
@@ -313,13 +373,25 @@ function summarizeParams(method, params) {
       status: params.status
     };
   }
-  if (method === "item/completed" && params.item) {
+  if ((method === "item/started" || method === "item/completed") && params.item) {
     const summary = {
       threadId: params.threadId,
       turnId: params.turnId,
-      itemType: params.item.type
+      itemId: params.item.id || null,
+      itemType: params.item.type,
+      status: params.item.status || null
     };
     if (params.item.type === "agentMessage") summary.text = params.item.text || "";
+    if (params.item.type === "mcpToolCall") {
+      summary.server = params.item.server || null;
+      summary.tool = params.item.tool || null;
+      summary.error = params.item.error || null;
+    }
+    if (params.item.type === "dynamicToolCall") {
+      summary.tool = params.item.tool || null;
+      summary.success = params.item.success || null;
+      summary.error = params.item.error || null;
+    }
     return summary;
   }
   if (params.threadId && params.message) {
@@ -330,6 +402,34 @@ function summarizeParams(method, params) {
   }
   if (params.threadId) return { threadId: params.threadId };
   return params;
+}
+
+function decideMcpElicitationResponse(params, opts = {}) {
+  if (!opts.approveCodextratorMcp) return null;
+  const request = parseMcpToolApproval(params);
+  if (!request) return null;
+  const meta = params && (params.meta || params._meta);
+  const approvalKind = meta && (meta.codex_approval_kind || meta.codexApprovalKind);
+  if (approvalKind && approvalKind !== "mcp_tool_call") return null;
+  if (request.serverName !== CODEXTRATOR_MCP_SERVER) return null;
+  if (!CODEXTRATOR_MCP_TOOLS.has(request.tool)) return null;
+  return {
+    action: "accept",
+    content: {}
+  };
+}
+
+function parseMcpToolApproval(params = {}) {
+  const message = String(params.message || "");
+  const parsed = message.match(/^Allow the ([^"]+?) MCP server to run tool "([^"]+)"\?$/);
+  const serverName = params.serverName || (parsed && parsed[1]) || null;
+  const tool = params.tool || params.toolName || (parsed && parsed[2]) || null;
+  if (!serverName || !tool) return null;
+  return { serverName, tool };
+}
+
+function hasJsonRpcId(message = {}) {
+  return Object.prototype.hasOwnProperty.call(message, "id") && message.id !== null && message.id !== undefined;
 }
 
 function pushTail(list, text, max) {
@@ -344,5 +444,7 @@ function sleep(ms) {
 module.exports = {
   runProof,
   sendTurnToThread,
-  makeAppServerUrl
+  makeAppServerUrl,
+  decideMcpElicitationResponse,
+  hasJsonRpcId
 };
