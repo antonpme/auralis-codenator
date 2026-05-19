@@ -185,6 +185,44 @@ This only writes `app_server_thread_id` metadata to the Codextrator registry.
 It does not send app-server turns, claim tasks, clear inboxes, or touch Desktop
 automations.
 
+### Daemon Watch
+
+`codextrator-daemon-watch` packages the wake path for an external local watcher.
+Default mode is one dry-run cycle:
+
+```powershell
+node E:\01-AURALIS\tools\auralis-codextrator\bin\codextrator-daemon-watch.js `
+  --root E:\01-AURALIS `
+  --json `
+  --once
+```
+
+Loop mode is opt-in:
+
+```powershell
+node E:\01-AURALIS\tools\auralis-codextrator\bin\codextrator-daemon-watch.js `
+  --root E:\01-AURALIS `
+  --json `
+  --loop `
+  --interval-ms 300000
+```
+
+Send mode is also opt-in and uses the proven app-server sequence:
+`thread/resume` followed by `turn/start`.
+
+```powershell
+node E:\01-AURALIS\tools\auralis-codextrator\bin\codextrator-daemon-watch.js `
+  --root E:\01-AURALIS `
+  --slots session-04 `
+  --send `
+  --prompt "Harmless wake proof. Do not use tools. Reply briefly." `
+  --json
+```
+
+The daemon watch does not integrate commits, assign tasks, clear inboxes, or
+mutate Desktop automations. It only reads MCP wake state, sends ready wake
+actions when explicitly enabled, and records wake attempts under `wake/`.
+
 ## Quick Start
 
 Initialize a shared store:

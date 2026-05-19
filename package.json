@@ -8,12 +8,13 @@
     "codextrator": "./bin/codextrator.js",
     "codextrator-app-server-proof": "./bin/codextrator-app-server-proof.js",
     "codextrator-app-thread-discover": "./bin/codextrator-app-thread-discover.js",
+    "codextrator-daemon-watch": "./bin/codextrator-daemon-watch.js",
     "codextrator-mcp-watch": "./bin/codextrator-mcp-watch.js",
     "codextrator-wake-adapter": "./bin/codextrator-wake-adapter.js"
   },
   "scripts": {
     "smoke": "node ./bin/codextrator.js --help",
-    "test": "node ./test/codextrator-cli.test.js && node ./test/codextrator-mcp.test.js && node ./test/codextrator-watch.test.js && node ./test/codextrator-wake-adapter.test.js && node ./test/codextrator-app-thread-discovery.test.js"
+    "test": "node ./test/codextrator-cli.test.js && node ./test/codextrator-mcp.test.js && node ./test/codextrator-watch.test.js && node ./test/codextrator-wake-adapter.test.js && node ./test/codextrator-app-thread-discovery.test.js && node ./test/codextrator-daemon-watch.test.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.27.1"
