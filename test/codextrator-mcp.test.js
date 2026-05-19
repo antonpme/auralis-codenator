@@ -104,7 +104,7 @@ async function callTool(id, name, args) {
     await callTool(3, "register_slot", {
       slot: "session-01",
       project: "demo-project",
-      identity: "elian",
+      identity: "worker-a",
       focus: "MCP slice",
       worktree,
       branch: "codex/mcp-demo"
@@ -170,17 +170,17 @@ async function callTool(id, name, args) {
     await callTool(105, "register_slot", {
       slot: "session-01",
       project: "demo-project",
-      identity: "elian",
+      identity: "worker-a",
       focus: "MCP slice",
       worktree,
       branch: "codex/mcp-demo",
-      app_server_thread_id: "019e-test-thread",
+      app_server_thread_id: "app-thread-demo",
       app_server_url: "ws://127.0.0.1:4575"
     });
 
     status = await callTool(106, "get_status", {});
     session = status.slots.find((slot) => slot.slot === "session-01");
-    assert.strictEqual(session.app_server_thread_id, "019e-test-thread");
+    assert.strictEqual(session.app_server_thread_id, "app-thread-demo");
     assert.strictEqual(session.app_server_url, "ws://127.0.0.1:4575");
 
     const readyAppServerPlan = await callTool(107, "plan_wake", {
@@ -190,7 +190,7 @@ async function callTool(id, name, args) {
     wakeAction = readyAppServerPlan.actions.find((action) => action.slot === "session-01");
     assert.strictEqual(wakeAction.adapter_request.adapter, "codex-app-server");
     assert.strictEqual(wakeAction.adapter_request.mode, "ready");
-    assert.strictEqual(wakeAction.adapter_request.params.threadId, "019e-test-thread");
+    assert.strictEqual(wakeAction.adapter_request.params.threadId, "app-thread-demo");
     assert.deepStrictEqual(wakeAction.adapter_request.params.input, [{ type: "text", text: wakeAction.prompt }]);
 
     const board = await callTool(110, "get_focus_board", {

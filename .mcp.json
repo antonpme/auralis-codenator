@@ -3,13 +3,9 @@
     "auralis-codextrator": {
       "command": "node",
       "args": [
-        "E:/01-AURALIS/tools/auralis-codextrator/src/server.js",
-        "--root",
-        "E:/01-AURALIS/.codextrator-mcp-root",
-        "--agent",
-        "elian"
+        "./src/server.js"
       ],
-      "note": "Local Auralis Codextrator MCP server. Uses the durable MCP ledger at E:/01-AURALIS/.codextrator-mcp-root and exposes Focus Board, task, inbox, report, heartbeat, and wake-planning tools."
+      "note": "Local Auralis Codextrator MCP server. Set AURALIS_CODEXTRATOR_ROOT and AURALIS_CODEXTRATOR_AGENT in the host environment when you need a specific shared ledger or agent id."
     }
   }
 }

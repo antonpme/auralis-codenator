@@ -5,8 +5,8 @@
   "author": {
     "name": "Auralis"
   },
-  "homepage": "https://github.com/antonpme/auralis-codextrator",
-  "repository": "https://github.com/antonpme/auralis-codextrator",
+  "homepage": "https://github.com/example/auralis-codextrator",
+  "repository": "https://github.com/example/auralis-codextrator",
   "license": "MIT",
   "keywords": [
     "codex",
@@ -29,9 +29,9 @@
       "Read",
       "Write"
     ],
-    "websiteURL": "https://github.com/antonpme/auralis-codextrator",
-    "privacyPolicyURL": "https://github.com/antonpme/auralis-codextrator",
-    "termsOfServiceURL": "https://github.com/antonpme/auralis-codextrator",
+    "websiteURL": "https://github.com/example/auralis-codextrator",
+    "privacyPolicyURL": "https://github.com/example/auralis-codextrator",
+    "termsOfServiceURL": "https://github.com/example/auralis-codextrator",
     "defaultPrompt": [
       "Use Auralis Codextrator to coordinate focus slots.",
       "Show the Codextrator Focus Board snapshot.",

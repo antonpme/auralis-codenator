@@ -5,9 +5,9 @@ description: Coordinate parallel Codex focus slots with Auralis Codextrator. Use
 
 # Auralis Codextrator
 
-Use Codextrator as its own coordination layer. It is not AOS Tasks, and it is
-not tied to one project. A project such as `auralis-os` is a task field inside
-Codextrator.
+Use Codextrator as its own coordination layer. It is not a project-specific
+task system, and it is not tied to one project. A project such as
+`demo-project` is a task field inside Codextrator.
 
 ## Model
 
@@ -45,7 +45,7 @@ Codextrator.
 
 ## Boundaries
 
-- Do not use Ton as a transport layer between sessions.
+- Do not use the human operator as a transport layer between sessions.
 - Do not assign new work from a worker slot.
 - Do not mutate another lane's files unless the task explicitly says so.
 - Do not clear coordinator inbox before reports are verified and integrated.

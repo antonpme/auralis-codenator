@@ -41,7 +41,7 @@ try {
   store.registerSlot(storeDir, {
     slot: "session-01",
     project: "demo-project",
-    identity: "elian",
+    identity: "worker-a",
     focus: "Wake adapter proof",
     worktree,
     branch: "codex/wake-adapter"
@@ -79,11 +79,11 @@ try {
   store.registerSlot(storeDir, {
     slot: "session-01",
     project: "demo-project",
-    identity: "elian",
+    identity: "worker-a",
     focus: "Wake adapter proof",
     worktree,
     branch: "codex/wake-adapter",
-    app_server_thread_id: "019e-test-thread"
+    app_server_thread_id: "app-thread-demo"
   });
 
   result = runWakeAdapter([
@@ -98,7 +98,7 @@ try {
   assert.strictEqual(result.data.send, false);
   assert.strictEqual(result.data.summary.planned, 1);
   assert.strictEqual(result.data.actions[0].adapter_request.mode, "ready");
-  assert.strictEqual(result.data.actions[0].adapter_request.params.threadId, "019e-test-thread");
+  assert.strictEqual(result.data.actions[0].adapter_request.params.threadId, "app-thread-demo");
 
   result = runWakeAdapter([
     "--root",

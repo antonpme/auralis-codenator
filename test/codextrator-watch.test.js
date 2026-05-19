@@ -27,7 +27,7 @@ try {
   store.registerSlot(storeDir, {
     slot: "session-01",
     project: "demo-project",
-    identity: "elian",
+    identity: "worker-a",
     focus: "Wake proof",
     worktree,
     branch: "codex/wake-proof"
@@ -114,7 +114,7 @@ try {
   store.registerSlot(nestedStore, {
     slot: "session-nested",
     project: "demo-project",
-    identity: "elian",
+    identity: "worker-a",
     focus: "Nested MCP root",
     worktree: path.join(parentRoot, "worktrees", "nested"),
     branch: "codex/nested-root"

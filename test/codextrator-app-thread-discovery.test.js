@@ -62,25 +62,25 @@ try {
     id: "older-session-01",
     timestamp: "2026-05-19T08:00:00.000Z",
     mtime: "2026-05-19T08:30:00.000Z",
-    text: `AOS-01 Memory Kernel, slot session-01.\nРаботай в:\n${worktree01}`
+    text: `Memory Kernel, slot session-01.\nWork in:\n${worktree01}`
   });
   writeSession("2026/05/19/rollout-session-01.jsonl", {
     id: "thread-session-01",
     timestamp: "2026-05-19T09:00:00.000Z",
     mtime: "2026-05-19T09:30:00.000Z",
-    text: `Элиан, это AOS-01 Memory Kernel, slot session-01.\nРаботай в:\n${worktree01}`
+    text: `Memory Kernel, slot session-01.\nWork in:\n${worktree01}`
   });
   writeSession("2026/05/19/rollout-session-02.jsonl", {
     id: "thread-session-02",
     timestamp: "2026-05-19T09:05:00.000Z",
     mtime: "2026-05-19T09:20:00.000Z",
-    text: `Элиан, это AOS-02 Process Rails, slot session-02.\nРаботай в:\n${worktree02}`
+    text: `Process Rails, slot session-02.\nWork in:\n${worktree02}`
   });
   writeSession("2026/05/19/rollout-coordinator.jsonl", {
     id: "thread-coordinator",
     timestamp: "2026-05-19T09:10:00.000Z",
     mtime: "2026-05-19T09:40:00.000Z",
-    text: "Элиан, это новая свежая сессия AOS-00 Coordinator для Auralis Codextrator."
+    text: "Auralis Codextrator coordinator, slot coordinator."
   });
   writeSession("2026/05/19/rollout-guardian.jsonl", {
     id: "thread-guardian",
@@ -101,14 +101,14 @@ try {
   const storeDir = store.ensureStore(workspaceRoot, "coordinator");
   store.registerSlot(storeDir, {
     slot: "session-01",
-    project: "auralis-os",
+    project: "demo-project",
     focus: "Memory",
     worktree: worktree01,
     branch: "codex/memory"
   });
   store.registerSlot(storeDir, {
     slot: "session-02",
-    project: "auralis-os",
+    project: "demo-project",
     focus: "Process",
     worktree: worktree02,
     branch: "codex/process"

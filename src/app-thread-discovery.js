@@ -80,7 +80,7 @@ function readSessionCandidate(fileInfo) {
       matched = {
         slot,
         text,
-        confidence: slot === "coordinator" ? "aos_coordinator" : "explicit_slot"
+        confidence: slot === "coordinator" ? "explicit_coordinator" : "explicit_slot"
       };
       break;
     }
@@ -117,12 +117,9 @@ function messageText(payload) {
 }
 
 function detectSlot(text) {
-  const explicit = String(text).match(/\bslot\s+(session-\d{2})\b/i);
+  const explicit = String(text).match(/\bslot\s+(coordinator|session-\d{2})\b/i);
   if (explicit) return explicit[1].toLowerCase();
-  const aos = String(text).match(/\bAOS-(\d{2})\b/i);
-  if (!aos) return "";
-  if (aos[1] === "00" && /Coordinator/i.test(text)) return "coordinator";
-  return `session-${aos[1]}`;
+  return "";
 }
 
 function detectWorktree(text) {
@@ -142,9 +139,7 @@ function detectWorktree(text) {
 
 function detectTitle(text, slot) {
   const firstLine = String(text).split(/\r?\n/).map((line) => line.trim()).find(Boolean) || "";
-  const title = firstLine.match(/AOS-\d{2}\s+([^,.\n]+)/i);
-  if (title) return title[0].trim();
-  return slot;
+  return firstLine || slot;
 }
 
 function normalizeTime(value) {

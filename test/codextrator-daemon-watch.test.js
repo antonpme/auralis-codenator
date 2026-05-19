@@ -19,7 +19,7 @@ function setupSlot(input = {}) {
   store.registerSlot(storeDir, {
     slot: input.slot || "session-04",
     project: "demo-project",
-    identity: "elian",
+    identity: "worker-a",
     focus: "Daemon watch proof",
     worktree,
     branch: "codex/daemon-watch",
@@ -46,7 +46,7 @@ function setupActiveSlot(input = {}) {
   store.registerSlot(storeDir, {
     slot,
     project: "demo-project",
-    identity: "elian",
+    identity: "worker-a",
     focus: "Daemon watch active task proof",
     worktree,
     branch: "codex/daemon-watch",

@@ -1,6 +1,7 @@
 "use strict";
 
 const assert = require("assert");
+const os = require("os");
 const path = require("path");
 const {
   decideCommandApprovalResponse,
@@ -77,7 +78,7 @@ assert.strictEqual(hasJsonRpcId({ id: 0, method: "mcpServer/elicitation/request"
 assert.strictEqual(hasJsonRpcId({ id: 12, method: "mcpServer/elicitation/request" }), true);
 assert.strictEqual(hasJsonRpcId({ method: "turn/completed" }), false);
 
-const worktree = path.resolve("E:/01-AURALIS/worktrees/auralis-os/process-orchestration");
+const worktree = path.join(os.tmpdir(), "codextrator-worktrees", "demo-project", "process-orchestration");
 const commandApproval = {
   threadId: "thread-session-02",
   turnId: "turn-session-02",
@@ -97,7 +98,7 @@ assert.deepStrictEqual(decision, { decision: "accept" });
 
 decision = decideCommandApprovalResponse({
   ...commandApproval,
-  command: "git add -- docs/elian-intervention/parallel-work/reports/process-orchestration.md"
+  command: "git add -- docs/focus-slot/reports/process-orchestration.md"
 }, {
   approveSafeCommands: true,
   commandApprovalCwd: worktree
@@ -109,7 +110,7 @@ decision = decideCommandApprovalResponse({
   command: [
     "C:\\Program Files\\PowerShell\\7\\pwsh.exe",
     "-Command",
-    "git add -- docs\\elian-intervention\\parallel-work\\reports\\process-orchestration.md"
+    "git add -- docs\\focus-slot\\reports\\process-orchestration.md"
   ]
 }, {
   approveSafeCommands: true,
@@ -119,7 +120,7 @@ assert.deepStrictEqual(decision, { decision: "accept" });
 
 decision = decideCommandApprovalResponse({
   ...commandApproval,
-  command: "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command 'git add docs/elian-intervention/parallel-work/reports/process-orchestration.md'"
+  command: "\"C:\\Program Files\\PowerShell\\7\\pwsh.exe\" -Command 'git add docs/focus-slot/reports/process-orchestration.md'"
 }, {
   approveSafeCommands: true,
   commandApprovalCwd: worktree
@@ -146,7 +147,7 @@ assert.strictEqual(decision, null);
 
 decision = decideCommandApprovalResponse({
   ...commandApproval,
-  cwd: path.resolve("E:/01-AURALIS/projects/auralis-os"),
+  cwd: path.join(os.tmpdir(), "codextrator-projects", "other-project"),
   command: "git diff --check"
 }, {
   approveSafeCommands: true,

@@ -35,10 +35,11 @@ This repository now carries a local Codex plugin bundle:
 - `.mcp.json`: local MCP server wiring for the durable Codextrator ledger.
 - `skills/codextrator/SKILL.md`: coordinator and worker operating guidance.
 
-The bundle is local-path oriented for Ton's Auralis host. After connecting it as
-a local Codex plugin and restarting Codex, the `auralis-codextrator` MCP server
-exposes the same ledger, task, wake, report, and Focus Board tools from inside
-Codex.
+The bundle is local-path neutral. After connecting it as a local Codex plugin
+and restarting Codex, the `auralis-codextrator` MCP server exposes the same
+ledger, task, wake, report, and Focus Board tools from inside Codex. Set
+`AURALIS_CODEXTRATOR_ROOT` in the host environment when you want all sessions
+to share a specific durable ledger directory.
 
 ## MCP Mode
 
@@ -48,9 +49,9 @@ on Codex Desktop automations or `target_thread_id` resume.
 Run it with:
 
 ```powershell
-node E:\01-AURALIS\tools\auralis-codextrator\src\server.js `
-  --root E:\01-AURALIS\.codextrator-mcp-root `
-  --agent elian
+node .\src\server.js `
+  --root C:\codextrator-ledger `
+  --agent coordinator
 ```
 
 Suggested Codex MCP config:
@@ -58,7 +59,7 @@ Suggested Codex MCP config:
 ```toml
 [mcp_servers.auralis-codextrator]
 command = "node"
-args = ["E:/01-AURALIS/tools/auralis-codextrator/src/server.js", "--root", "E:/01-AURALIS/.codextrator-mcp-root", "--agent", "elian"]
+args = ["./src/server.js"]
 ```
 
 MCP tools:
@@ -109,8 +110,8 @@ can call `record_wake_attempt` to write an audit record under `wake/`.
 For local schedulers or a standalone daemon, use the CLI wrapper:
 
 ```powershell
-node E:\01-AURALIS\tools\auralis-codextrator\bin\codextrator-mcp-watch.js `
-  --root E:\01-AURALIS `
+node .\bin\codextrator-mcp-watch.js `
+  --root C:\codextrator-ledger `
   --json
 ```
 
@@ -125,7 +126,7 @@ Use the app-server proof command before enabling a wake adapter that talks to
 real focus slots:
 
 ```powershell
-node E:\01-AURALIS\tools\auralis-codextrator\bin\codextrator-app-server-proof.js `
+node .\bin\codextrator-app-server-proof.js `
   --json
 ```
 
@@ -148,8 +149,8 @@ are resumed.
 Dry-run:
 
 ```powershell
-node E:\01-AURALIS\tools\auralis-codextrator\bin\codextrator-wake-adapter.js `
-  --root E:\01-AURALIS `
+node .\bin\codextrator-wake-adapter.js `
+  --root C:\codextrator-ledger `
   --json `
   --dry-run
 ```
@@ -157,8 +158,8 @@ node E:\01-AURALIS\tools\auralis-codextrator\bin\codextrator-wake-adapter.js `
 Send mode:
 
 ```powershell
-node E:\01-AURALIS\tools\auralis-codextrator\bin\codextrator-wake-adapter.js `
-  --root E:\01-AURALIS `
+node .\bin\codextrator-wake-adapter.js `
+  --root C:\codextrator-ledger `
   --slot session-01 `
   --json `
   --send `
@@ -173,7 +174,7 @@ write wake attempts.
 For a harmless loopback proof through a temporary read-only thread:
 
 ```powershell
-node E:\01-AURALIS\tools\auralis-codextrator\bin\codextrator-wake-adapter.js `
+node .\bin\codextrator-wake-adapter.js `
   --test-thread `
   --json `
   --effort low
@@ -183,11 +184,11 @@ node E:\01-AURALIS\tools\auralis-codextrator\bin\codextrator-wake-adapter.js `
 
 `codextrator-app-thread-discover` scans local Codex Desktop session JSONL files
 and proposes app-server thread ids for slots whose startup prompts explicitly
-name `slot session-XX` or `AOS-00 Coordinator`. Default mode is read-only:
+name `slot session-XX` or `slot coordinator`. Default mode is read-only:
 
 ```powershell
-node E:\01-AURALIS\tools\auralis-codextrator\bin\codextrator-app-thread-discover.js `
-  --root E:\01-AURALIS `
+node .\bin\codextrator-app-thread-discover.js `
+  --root C:\codextrator-ledger `
   --slots session-01,session-02,session-03,session-04 `
   --json
 ```
@@ -195,8 +196,8 @@ node E:\01-AURALIS\tools\auralis-codextrator\bin\codextrator-app-thread-discover
 To store the discovered metadata for non-coordinator slots:
 
 ```powershell
-node E:\01-AURALIS\tools\auralis-codextrator\bin\codextrator-app-thread-discover.js `
-  --root E:\01-AURALIS `
+node .\bin\codextrator-app-thread-discover.js `
+  --root C:\codextrator-ledger `
   --slots session-01,session-02,session-03,session-04 `
   --apply `
   --json
@@ -212,8 +213,8 @@ automations.
 Default mode is one dry-run cycle:
 
 ```powershell
-node E:\01-AURALIS\tools\auralis-codextrator\bin\codextrator-daemon-watch.js `
-  --root E:\01-AURALIS `
+node .\bin\codextrator-daemon-watch.js `
+  --root C:\codextrator-ledger `
   --json `
   --once
 ```
@@ -221,8 +222,8 @@ node E:\01-AURALIS\tools\auralis-codextrator\bin\codextrator-daemon-watch.js `
 Loop mode is opt-in:
 
 ```powershell
-node E:\01-AURALIS\tools\auralis-codextrator\bin\codextrator-daemon-watch.js `
-  --root E:\01-AURALIS `
+node .\bin\codextrator-daemon-watch.js `
+  --root C:\codextrator-ledger `
   --json `
   --loop `
   --interval-ms 300000
@@ -235,8 +236,8 @@ task wakeups; otherwise the daemon records
 `reason=explicit_prompt_mode_required` and does not call app-server.
 
 ```powershell
-node E:\01-AURALIS\tools\auralis-codextrator\bin\codextrator-daemon-watch.js `
-  --root E:\01-AURALIS `
+node .\bin\codextrator-daemon-watch.js `
+  --root C:\codextrator-ledger `
   --slots session-04 `
   --send `
   --prompt "Harmless wake proof. Do not use tools. Reply briefly." `
@@ -246,8 +247,8 @@ node E:\01-AURALIS\tools\auralis-codextrator\bin\codextrator-daemon-watch.js `
 For real task wakeups, use the guarded work prompt:
 
 ```powershell
-node E:\01-AURALIS\tools\auralis-codextrator\bin\codextrator-daemon-watch.js `
-  --root E:\01-AURALIS `
+node .\bin\codextrator-daemon-watch.js `
+  --root C:\codextrator-ledger `
   --slots session-04 `
   --send `
   --prompt-mode work `
@@ -350,8 +351,8 @@ frequent Codex cron automation when sidebar noise matters.
 Example quiet local check:
 
 ```powershell
-$env:AURALIS_CODEXTRATOR_ROOT = "E:\01-AURALIS"
-node E:\01-AURALIS\tools\auralis-codextrator\bin\codextrator.js watchdog-check `
+$env:AURALIS_CODEXTRATOR_ROOT = "C:\codextrator-ledger"
+node .\bin\codextrator.js watchdog-check `
   --json `
   --snooze-minutes 20
 ```
@@ -368,7 +369,7 @@ node .\bin\codextrator.js status
 Submit a commit report from the current worktree:
 
 ```powershell
-node C:\tools\auralis-codextrator\bin\codextrator.js report-commit
+codextrator report-commit
 ```
 
 ## Codex Hooks

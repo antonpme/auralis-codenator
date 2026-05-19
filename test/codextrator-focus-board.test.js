@@ -20,16 +20,16 @@ try {
 
   storeApi.registerSlot(store, {
     slot: "session-02",
-    identity: "elian",
-    project: "auralis-os",
+    identity: "worker-a",
+    project: "demo-project",
     focus: "Process Rails",
     worktree: processWorktree,
     branch: "codex/process"
   });
   storeApi.registerSlot(store, {
     slot: "session-04",
-    identity: "elian",
-    project: "auralis-os",
+    identity: "worker-a",
+    project: "demo-project",
     focus: "Catalog",
     worktree: catalogWorktree,
     branch: "codex/catalog"
@@ -47,13 +47,13 @@ try {
     lane_id: "process",
     title: "Process",
     owner_slot: "session-02",
-    project: "auralis-os"
+    project: "demo-project"
   });
   storeApi.upsertLane(store, {
     lane_id: "catalog",
     title: "Catalog",
     owner_slot: "session-04",
-    project: "auralis-os"
+    project: "demo-project"
   });
 
   const processTask = storeApi.createTask(store, {
@@ -61,7 +61,7 @@ try {
     task_id: "task-process-1",
     title: "Process board contract",
     message: "Implement the Process-owned slice.",
-    project: "auralis-os",
+    project: "demo-project",
     lane_id: "process",
     milestone_id: "m1-foundation",
     acceptance_criteria: ["snapshot lists every lane", "worker sees own assignment"],
@@ -72,7 +72,7 @@ try {
     task_id: "task-catalog-1",
     title: "Catalog board contract",
     message: "Implement the Catalog-owned slice.",
-    project: "auralis-os",
+    project: "demo-project",
     lane_id: "catalog",
     milestone_id: "m1-foundation",
     dependency_ids: ["task-process-1"],
