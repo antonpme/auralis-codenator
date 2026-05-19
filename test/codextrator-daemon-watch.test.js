@@ -152,6 +152,7 @@ try {
   assert.strictEqual(result.ok, true);
   assert.strictEqual(result.summary.sent, 1);
   assert.match(result.attempts[0].prompt, /Codextrator work wake for session-04/);
+  assert.match(result.attempts[0].prompt, /record_heartbeat for session-04 with status ok/);
   assert.match(result.attempts[0].prompt, /If and only if a task\.assign is present/);
   assert.match(result.attempts[0].prompt, /Do not touch live\/v1 roots/);
   assert.strictEqual(wakeFiles(storeDir).length, 1);

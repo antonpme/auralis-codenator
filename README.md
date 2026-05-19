@@ -233,10 +233,10 @@ node E:\01-AURALIS\tools\auralis-codextrator\bin\codextrator-daemon-watch.js `
   --json
 ```
 
-The work prompt tells the slot to read its inbox, claim only a delivered
-`task.assign`, stay inside its registered worktree, avoid live/v1 roots and
-other slots, run focused tests, commit, and report the commit back to the
-coordinator.
+The work prompt tells the slot to record a fresh heartbeat, read its inbox,
+claim only a delivered `task.assign`, stay inside its registered worktree,
+avoid live/v1 roots and other slots, run focused tests, commit, and report the
+commit back to the coordinator.
 
 The daemon watch does not integrate commits, assign tasks, clear inboxes, or
 mutate Desktop automations. It only reads MCP wake state, sends ready wake
