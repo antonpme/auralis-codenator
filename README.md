@@ -154,6 +154,33 @@ node E:\01-AURALIS\tools\auralis-codextrator\bin\codextrator-wake-adapter.js `
   --effort low
 ```
 
+### App-Thread Discovery
+
+`codextrator-app-thread-discover` scans local Codex Desktop session JSONL files
+and proposes app-server thread ids for slots whose startup prompts explicitly
+name `slot session-XX` or `AOS-00 Coordinator`. Default mode is read-only:
+
+```powershell
+node E:\01-AURALIS\tools\auralis-codextrator\bin\codextrator-app-thread-discover.js `
+  --root E:\01-AURALIS `
+  --slots session-01,session-02,session-03,session-04 `
+  --json
+```
+
+To store the discovered metadata for non-coordinator slots:
+
+```powershell
+node E:\01-AURALIS\tools\auralis-codextrator\bin\codextrator-app-thread-discover.js `
+  --root E:\01-AURALIS `
+  --slots session-01,session-02,session-03,session-04 `
+  --apply `
+  --json
+```
+
+This only writes `app_server_thread_id` metadata to the Codextrator registry.
+It does not send app-server turns, claim tasks, clear inboxes, or touch Desktop
+automations.
+
 ## Quick Start
 
 Initialize a shared store:
