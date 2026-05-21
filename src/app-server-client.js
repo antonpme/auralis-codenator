@@ -660,6 +660,18 @@ function isSafeGitCommand(argv) {
   }
   if (subcommand === "hash-object") {
     const args = argv.slice(2).filter((arg) => arg !== "--no-filters");
+    while (args.length > 0) {
+      if (String(args[0]).startsWith("--path=")) {
+        const pathValue = String(args.shift()).slice("--path=".length);
+        if (!isSafeRelativePath(pathValue)) return false;
+      } else if (args[0] === "--path") {
+        args.shift();
+        const pathValue = args.shift();
+        if (!isSafeRelativePath(pathValue)) return false;
+      } else {
+        break;
+      }
+    }
     const paths = args[0] === "--" ? args.slice(1) : args;
     return paths.length > 0 && paths.every((item) => !String(item).startsWith("-") && isSafeRelativePath(item));
   }
