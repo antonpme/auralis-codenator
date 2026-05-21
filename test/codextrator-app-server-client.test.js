@@ -7,6 +7,7 @@ const {
   decideCommandApprovalResponse,
   decideMcpElicitationResponse,
   hasJsonRpcId,
+  makeAppServerInvocation,
   startPersistentThread
 } = require("../src/app-server-client.js");
 
@@ -27,6 +28,18 @@ const heartbeatApproval = {
 };
 
 let decision = decideMcpElicitationResponse(heartbeatApproval, {
+  approveCodextratorMcp: true
+});
+assert.deepStrictEqual(decision, {
+  action: "accept",
+  content: {}
+});
+
+decision = decideMcpElicitationResponse({
+  ...heartbeatApproval,
+  serverName: "auralis_codextrator",
+  message: "Allow the auralis_codextrator MCP server to run tool \"record_heartbeat\"?"
+}, {
   approveCodextratorMcp: true
 });
 assert.deepStrictEqual(decision, {
@@ -80,6 +93,24 @@ assert.strictEqual(decision, null);
 assert.strictEqual(hasJsonRpcId({ id: 0, method: "mcpServer/elicitation/request" }), true);
 assert.strictEqual(hasJsonRpcId({ id: 12, method: "mcpServer/elicitation/request" }), true);
 assert.strictEqual(hasJsonRpcId({ method: "turn/completed" }), false);
+
+const invocation = makeAppServerInvocation("ws://127.0.0.1:4575", {
+  codexCommand: "codex",
+  codextratorMcpRoot: path.join(os.tmpdir(), "codextrator-root"),
+  codextratorMcpAgent: "session-05"
+});
+assert.strictEqual(invocation.command, "codex");
+assert.deepStrictEqual(invocation.args.slice(0, 3), ["app-server", "--listen", "ws://127.0.0.1:4575"]);
+assert.ok(invocation.args.includes("mcp_servers.auralis_codextrator.command='node'"));
+assert.ok(invocation.args.some((arg) => (
+  arg.includes("mcp_servers.auralis_codextrator.args=") &&
+  arg.includes("src/server.js") &&
+  arg.includes("--root") &&
+  arg.includes("codextrator-root") &&
+  arg.includes("--agent") &&
+  arg.includes("session-05")
+)));
+assert.match(invocation.display, /auralis-codextrator/);
 
 const worktree = path.join(os.tmpdir(), "codextrator-worktrees", "demo-project", "process-orchestration");
 const commandApproval = {

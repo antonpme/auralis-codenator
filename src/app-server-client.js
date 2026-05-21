@@ -6,6 +6,11 @@ const path = require("path");
 const { spawn, spawnSync } = require("child_process");
 
 const CODEXTRATOR_MCP_SERVER = "auralis-codextrator";
+const CODEXTRATOR_MCP_SERVER_ALIAS = "auralis_codextrator";
+const CODEXTRATOR_MCP_SERVER_NAMES = new Set([
+  CODEXTRATOR_MCP_SERVER,
+  CODEXTRATOR_MCP_SERVER_ALIAS
+]);
 const CODEXTRATOR_MCP_TOOLS = new Set([
   "claim_next_task",
   "get_focus_board",
@@ -16,20 +21,76 @@ const CODEXTRATOR_MCP_TOOLS = new Set([
   "update_task"
 ]);
 
+function makeAppServerInvocation(url, opts = {}) {
+  const command = opts.codexCommand || process.env.CODEX_CLI_PATH || "codex";
+  const args = ["app-server", "--listen", url];
+  if (opts.codextratorMcpRoot) {
+    const serverName = opts.codextratorMcpServerName || CODEXTRATOR_MCP_SERVER_ALIAS;
+    const serverScript = opts.codextratorMcpServer || path.join(__dirname, "server.js");
+    args.push(
+      "-c",
+      `${mcpConfigKey(serverName, "command")}=${tomlLiteralString("node")}`,
+      "-c",
+      `${mcpConfigKey(serverName, "args")}=${tomlArray([
+        toConfigPath(serverScript),
+        "--root",
+        toConfigPath(opts.codextratorMcpRoot),
+        "--agent",
+        String(opts.codextratorMcpAgent || "codextrator-app-server")
+      ])}`
+    );
+  }
+  return {
+    command,
+    args,
+    display: quoteCommand([command, ...args])
+  };
+}
+
+function mcpConfigKey(serverName, field) {
+  return `mcp_servers.${serverName}.${field}`;
+}
+
+function toConfigPath(value) {
+  return path.resolve(String(value)).replace(/\\/g, "/");
+}
+
+function tomlArray(values) {
+  return `[${values.map(tomlLiteralString).join(",")}]`;
+}
+
+function tomlLiteralString(value) {
+  return `'${String(value).replace(/'/g, "''")}'`;
+}
+
+function quoteCommand(argv) {
+  return argv.map((arg) => quoteCommandArg(String(arg))).join(" ");
+}
+
+function quoteCommandArg(arg) {
+  if (/^[A-Za-z0-9_./:=@-]+$/.test(arg)) return arg;
+  return `"${arg.replace(/(["\\])/g, "\\$1")}"`;
+}
+
 function makeAppServerUrl(port) {
   return `ws://127.0.0.1:${Number(port || 4575)}`;
 }
 
+function randomAppServerPort() {
+  return 45000 + Math.floor(Math.random() * 10000);
+}
+
 async function runProof(opts = {}) {
-  const port = Number(opts.port || 4575);
+  const port = opts.port || randomAppServerPort();
   const url = opts.url || makeAppServerUrl(port);
   const proofRoot = opts.cwd ? path.resolve(opts.cwd) : fs.mkdtempSync(path.join(os.tmpdir(), "codex-app-proof-"));
   const timeoutMs = Number(opts["timeout-ms"] || opts.timeoutMs || 120000);
   const effort = opts.effort || "low";
+  const invocation = makeAppServerInvocation(url, opts);
   const evidence = makeEvidence({
     cwd: proofRoot,
     url,
-    command: `codex app-server --listen ${url}`
+    invocation
   });
 
   return withAppServer({
@@ -92,13 +153,14 @@ async function runProof(opts = {}) {
 
 async function sendTurnToThread(opts = {}) {
   if (!opts.threadId) throw new Error("threadId is required");
-  const url = opts.url || makeAppServerUrl(opts.port || 4575);
+  const url = opts.url || makeAppServerUrl(opts.port || randomAppServerPort());
   const cwd = opts.cwd ? path.resolve(opts.cwd) : process.cwd();
   const timeoutMs = Number(opts["timeout-ms"] || opts.timeoutMs || 120000);
+  const invocation = makeAppServerInvocation(url, opts);
   const evidence = makeEvidence({
     cwd,
     url,
-    command: `codex app-server --listen ${url}`
+    invocation
   });
   evidence.thread_id = opts.threadId;
   evidence.client_options = {
@@ -162,17 +224,25 @@ async function sendTurnToThread(opts = {}) {
 }
 
 async function startPersistentThread(opts = {}) {
-  const url = opts.url || makeAppServerUrl(opts.port || 4575);
+  const url = opts.url || makeAppServerUrl(opts.port || randomAppServerPort());
   const cwd = opts.cwd ? path.resolve(opts.cwd) : process.cwd();
   const threadCwd = opts.threadCwd ? path.resolve(opts.threadCwd) : cwd;
   const timeoutMs = Number(opts["timeout-ms"] || opts.timeoutMs || 120000);
   const effort = opts.effort || "low";
   const expected = opts.expected || "";
+  const invocation = makeAppServerInvocation(url, opts);
   const evidence = makeEvidence({
     cwd,
     url,
-    command: `codex app-server --listen ${url}`
+    invocation
   });
+  evidence.client_options = {
+    approveCodextratorMcp: opts.approveCodextratorMcp === true,
+    approveSafeCommands: opts.approveSafeCommands === true,
+    commandApprovalCwd: opts.commandApprovalCwd
+      ? path.resolve(opts.commandApprovalCwd)
+      : threadCwd
+  };
   evidence.thread_options = {
     threadCwd,
     approvalPolicy: opts.approvalPolicy || "never",
@@ -248,7 +318,9 @@ function makeEvidence(input) {
     proofRoot: input.cwd,
     url: input.url,
     started_at: new Date().toISOString(),
-    command: input.command,
+    command: input.invocation.display,
+    command_argv: input.invocation.args,
+    command_exe: input.invocation.command,
     events: [],
     responses: {},
     elicitation_responses: [],
@@ -278,6 +350,7 @@ async function waitCompletedOrInterrupt(client, threadId, turnId, timeoutMs, evi
 }
 
 async function withAppServer(input, callback) {
+  let childExited = false;
   const child = spawn(process.env.ComSpec || "cmd.exe", ["/d", "/s", "/c", input.evidence.command], {
     cwd: input.cwd,
     env: { ...process.env },
@@ -287,12 +360,13 @@ async function withAppServer(input, callback) {
   input.evidence.child_pid = child.pid;
   child.stderr.on("data", (chunk) => pushTail(input.evidence.stderr_tail, chunk.toString(), 24));
   child.on("exit", (code, signal) => {
+    childExited = true;
     input.evidence.child_exit = { code, signal, at: new Date().toISOString() };
   });
 
   let ws;
   try {
-    ws = await connectWithRetry(input.url, input.connectTimeoutMs || 20000);
+    ws = await connectWithRetry(input.url, input.connectTimeoutMs || 20000, () => childExited);
     const client = makeClient(ws, input.evidence);
     return await callback({ client, evidence: input.evidence, child });
   } finally {
@@ -310,10 +384,11 @@ async function withAppServer(input, callback) {
   }
 }
 
-async function connectWithRetry(url, timeoutMs) {
+async function connectWithRetry(url, timeoutMs, isAppServerExited = () => false) {
   const deadline = Date.now() + timeoutMs;
   let lastError = null;
   while (Date.now() < deadline) {
+    if (isAppServerExited()) throw new Error("app-server exited before websocket connection");
     try {
       const ws = new WebSocket(url);
       await new Promise((resolve, reject) => {
@@ -538,7 +613,7 @@ function decideMcpElicitationResponse(params, opts = {}) {
   const meta = params && (params.meta || params._meta);
   const approvalKind = meta && (meta.codex_approval_kind || meta.codexApprovalKind);
   if (approvalKind && approvalKind !== "mcp_tool_call") return null;
-  if (request.serverName !== CODEXTRATOR_MCP_SERVER) return null;
+  if (!CODEXTRATOR_MCP_SERVER_NAMES.has(request.serverName)) return null;
   if (!CODEXTRATOR_MCP_TOOLS.has(request.tool)) return null;
   return {
     action: "accept",
@@ -821,6 +896,7 @@ module.exports = {
   sendTurnToThread,
   startPersistentThread,
   makeAppServerUrl,
+  makeAppServerInvocation,
   decideCommandApprovalResponse,
   decideMcpElicitationResponse,
   hasJsonRpcId

@@ -103,7 +103,9 @@ function runDaemonWatchOnce(input = {}) {
       timeoutMs: input.timeoutMs,
       approveCodextratorMcp: hasExplicitSendPrompt(input),
       approveSafeCommands: hasExplicitSendPrompt(input),
-      commandApprovalCwd: action.worktree || root
+      commandApprovalCwd: action.worktree || root,
+      codextratorMcpRoot: root,
+      codextratorMcpAgent: action.slot
     });
 
     if (turn && typeof turn.then === "function") {
@@ -213,7 +215,9 @@ async function runDaemonWatchOnceAsync(input = {}) {
       timeoutMs: input.timeoutMs,
       approveCodextratorMcp: hasExplicitSendPrompt(input),
       approveSafeCommands: hasExplicitSendPrompt(input),
-      commandApprovalCwd: action.worktree || root
+      commandApprovalCwd: action.worktree || root,
+      codextratorMcpRoot: root,
+      codextratorMcpAgent: action.slot
     });
     recordTurnResult(storeDir, result, action, turn);
   }
