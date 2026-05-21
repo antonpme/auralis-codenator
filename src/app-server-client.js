@@ -202,7 +202,7 @@ async function sendTurnToThread(opts = {}) {
       if (opts.effort) params.effort = opts.effort;
       if (opts.turnCwd) params.cwd = path.resolve(opts.turnCwd);
       if (opts.approvalPolicy) params.approvalPolicy = opts.approvalPolicy;
-      if (opts.sandbox) params.sandbox = opts.sandbox;
+      if (opts.sandbox) params.sandboxPolicy = sandboxPolicyForMode(opts.sandbox);
 
       const turnStart = await client.request("turn/start", params, 30000);
       evidence.turn_id = turnStart.turn.id;
@@ -329,6 +329,19 @@ function makeEvidence(input) {
     agent_text: "",
     stderr_tail: []
   };
+}
+
+function sandboxPolicyForMode(mode) {
+  switch (mode) {
+    case "danger-full-access":
+      return { type: "dangerFullAccess" };
+    case "read-only":
+      return { type: "readOnly" };
+    case "workspace-write":
+      return { type: "workspaceWrite" };
+    default:
+      throw new Error(`Unsupported app-server turn sandbox mode: ${mode}`);
+  }
 }
 
 async function waitCompletedOrInterrupt(client, threadId, turnId, timeoutMs, evidence, opts = {}) {
@@ -898,6 +911,7 @@ module.exports = {
   startPersistentThread,
   makeAppServerUrl,
   makeAppServerInvocation,
+  sandboxPolicyForMode,
   decideCommandApprovalResponse,
   decideMcpElicitationResponse,
   hasJsonRpcId

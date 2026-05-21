@@ -8,6 +8,7 @@ const {
   decideMcpElicitationResponse,
   hasJsonRpcId,
   makeAppServerInvocation,
+  sandboxPolicyForMode,
   startPersistentThread
 } = require("../src/app-server-client.js");
 
@@ -93,6 +94,10 @@ assert.strictEqual(decision, null);
 assert.strictEqual(hasJsonRpcId({ id: 0, method: "mcpServer/elicitation/request" }), true);
 assert.strictEqual(hasJsonRpcId({ id: 12, method: "mcpServer/elicitation/request" }), true);
 assert.strictEqual(hasJsonRpcId({ method: "turn/completed" }), false);
+
+assert.deepStrictEqual(sandboxPolicyForMode("danger-full-access"), { type: "dangerFullAccess" });
+assert.deepStrictEqual(sandboxPolicyForMode("workspace-write"), { type: "workspaceWrite" });
+assert.deepStrictEqual(sandboxPolicyForMode("read-only"), { type: "readOnly" });
 
 const invocation = makeAppServerInvocation("ws://127.0.0.1:4575", {
   codexCommand: "codex",
