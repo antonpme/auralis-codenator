@@ -1,0 +1,3 @@
+display_name: Codenator Coordinator Rails
+short_description: Keep Codenator waves planned, verified, and session-safe.
+default_prompt: Use Codenator Coordinator Rails to plan, dispatch, verify, and pause a Codenator wave safely.

@@ -1,6 +1,6 @@
 {
   "name": "auralis-codenator",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Coordinate parallel Codex focus slots through a shared MCP ledger, app-server wake adapter, Focus Board, and local admin dashboard.",
   "author": {
     "name": "Auralis"

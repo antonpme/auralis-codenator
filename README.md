@@ -40,6 +40,9 @@ This repository now carries a local Codex plugin bundle:
 - `.codex-plugin/plugin.json`: plugin metadata.
 - `.mcp.json`: local MCP server wiring for the durable Codenator ledger.
 - `skills/codenator/SKILL.md`: coordinator and worker operating guidance.
+- `skills/codenator-coordinator-rails/SKILL.md`: coordinator phase gates for
+  cycle planning, spec readiness, dispatch, verification, reviewer passes, and
+  durable pauses.
 
 The bundle is local-path neutral. After connecting it as a local Codex plugin
 and restarting Codex, the `auralis-codenator` MCP server exposes the same
@@ -141,12 +144,16 @@ mode and marks the missing requirement instead of guessing a thread id.
 After an external helper performs a notify-only or app-server wake attempt, it
 can call `record_wake_attempt` to write an audit record under `wake/`.
 
-The coordinator summary-pause guard counts integrated or done tasks. After 35
-integrations since the last pause marker, `plan_wake` returns `PAUSE` and
-converts slot actions to `summary_pause_hold`. The recommended operating window
-is 30-40 integrations: use the Focus Board warning at 30 to prepare the brief
-summary, stop at 35, give Ton the summary, then call `record_summary_pause` to
-reset the counter.
+The coordinator summary-pause guard counts integrated or done tasks. It is a
+guardrail, not a goal. After 35 integrations since the last pause marker,
+`plan_wake` returns `PAUSE` and converts slot actions to `summary_pause_hold`.
+The recommended operating window is 30-40 integrations: use the Focus Board
+warning at 30 to prepare the brief summary, stop at 35, give Ton the summary,
+then call `record_summary_pause` to reset the counter. Between mandatory
+pauses, the coordinator should still stop for real guardrails such as plan
+exhaustion, missing specs, stale slots, failed verification, live-boundary
+escalation, user stop/sleep signals, or an overgrown Codex session that needs
+durable crystallization.
 
 For local schedulers or a standalone daemon, use the CLI wrapper:
 
