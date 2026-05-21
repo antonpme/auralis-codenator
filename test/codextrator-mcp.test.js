@@ -88,7 +88,7 @@ async function callTool(id, name, args) {
       clientInfo: { name: "codextrator-mcp-test", version: "1.0.0" },
       capabilities: {}
     });
-    assert.strictEqual(init.result.serverInfo.name, "auralis-codextrator");
+    assert.strictEqual(init.result.serverInfo.name, "auralis-codenator");
 
     const listed = await rpc(2, "tools/list", {});
     const toolNames = listed.result.tools.map((tool) => tool.name);
@@ -197,7 +197,7 @@ async function callTool(id, name, args) {
     const board = await callTool(110, "get_focus_board", {
       viewer_slot: "session-01"
     });
-    assert.strictEqual(board.board.name, "Auralis Codextrator Focus Board");
+    assert.strictEqual(board.board.name, "Auralis Codenator Focus Board");
     assert.strictEqual(board.visibility.role, "worker");
     assert.deepStrictEqual(board.visibility.own_task_ids, ["mcp-task-1"]);
     assert.strictEqual(board.milestones[0].milestone_id, "mcp-foundation");

@@ -79,7 +79,7 @@ function sleep(ms) {
 }
 
 function printHuman(result) {
-  console.log(`Codextrator daemon watch: ${result.ok ? "OK" : "BLOCKED"}`);
+  console.log(`Codenator daemon watch: ${result.ok ? "OK" : "BLOCKED"}`);
   console.log(`send=${result.send} cycles=${result.cycles.length}`);
   for (const cycle of result.cycles) {
     console.log(`${cycle.decision} planned=${cycle.summary.planned} sent=${cycle.summary.sent} blocked=${cycle.summary.blocked} failed=${cycle.summary.failed}`);
@@ -96,7 +96,7 @@ Usage:
                            [--prompt TEXT | --prompt-mode work]
                            [--sandbox MODE]
 
-Default mode is one dry-run cycle. It reads Codextrator MCP wake state and
+Default mode is one dry-run cycle. It reads Codenator MCP wake state and
 prints planned app-server wakes without mutating inboxes or tasks. With --send,
 it records wake attempts and sends ready actions through app-server using
 thread/resume followed by turn/start. Send mode requires either an explicit

@@ -39,7 +39,7 @@ try {
     milestone_id: "m1-foundation",
     title: "Foundation contracts",
     status: "active",
-    description: "Prove shared Codextrator board visibility."
+    description: "Prove shared Codenator board visibility."
   });
   assert.strictEqual(milestone.milestone_id, "m1-foundation");
 
@@ -92,7 +92,7 @@ try {
   const coordinatorSnapshot = storeApi.buildFocusBoardSnapshot(store, {
     viewer_slot: "coordinator"
   });
-  assert.strictEqual(coordinatorSnapshot.board.name, "Auralis Codextrator Focus Board");
+  assert.strictEqual(coordinatorSnapshot.board.name, "Auralis Codenator Focus Board");
   assert.strictEqual(coordinatorSnapshot.visibility.role, "coordinator");
   assert.strictEqual(coordinatorSnapshot.visibility.can_manage_backlog, true);
   assert.deepStrictEqual(coordinatorSnapshot.progress.status_counts, {

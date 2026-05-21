@@ -7,6 +7,11 @@ const { execFileSync } = require("child_process");
 
 const STORE_NAME = ".auralis-codextrator";
 const MCP_ROOT_NAME = ".codextrator-mcp-root";
+const PRODUCT_NAME = "Auralis Codenator";
+const PRODUCT_ID = "auralis-codenator";
+const LEGACY_PRODUCT_ID = "auralis-codextrator";
+const FOCUS_BOARD_NAME = "Auralis Codenator Focus Board";
+const FOCUS_BOARD_DESCRIPTION = "Shared backlog, milestones, lanes, assignments, reports, and integration receipts for Codenator focus slots.";
 const MINUTE_MS = 60 * 1000;
 const DEFAULT_HEARTBEAT_MAX_MINUTES = 15;
 const SUMMARY_PAUSE_MIN_INTEGRATIONS = 30;
@@ -82,7 +87,8 @@ function ensureStore(root, agent = "coordinator") {
   if (!fs.existsSync(registryFile)) {
     writeJson(registryFile, {
       version: 2,
-      name: "auralis-codextrator",
+      name: PRODUCT_ID,
+      legacy_names: [LEGACY_PRODUCT_ID],
       transport: "mcp",
       created_at: now(),
       updated_at: now(),
@@ -345,8 +351,8 @@ function focusBoardPath(store) {
 function defaultFocusBoard() {
   return {
     version: 1,
-    name: "Auralis Codextrator Focus Board",
-    description: "Shared backlog, milestones, lanes, assignments, reports, and integration receipts for Codextrator focus slots.",
+    name: FOCUS_BOARD_NAME,
+    description: FOCUS_BOARD_DESCRIPTION,
     milestones: [],
     lanes: [],
     created_at: now(),
@@ -362,9 +368,18 @@ function readFocusBoard(store) {
     return board;
   }
   const board = readJson(file);
+  const defaultBoard = defaultFocusBoard();
+  const normalizedName = board.name === "Auralis Codextrator Focus Board"
+    ? defaultBoard.name
+    : board.name;
+  const normalizedDescription = board.description === "Shared backlog, milestones, lanes, assignments, reports, and integration receipts for Codextrator focus slots."
+    ? defaultBoard.description
+    : board.description;
   return {
-    ...defaultFocusBoard(),
+    ...defaultBoard,
     ...board,
+    name: normalizedName,
+    description: normalizedDescription,
     milestones: Array.isArray(board.milestones) ? board.milestones : [],
     lanes: Array.isArray(board.lanes) ? board.lanes : []
   };
@@ -723,7 +738,7 @@ function planSummaryPauseAction(slot, policy) {
       blocked: true,
       safe_to_assign: false,
       prompt: [
-        "Stop the coordinator loop for the scheduled Codextrator summary pause.",
+        `Stop the coordinator loop for the scheduled ${PRODUCT_NAME} summary pause.`,
         `Integrations since last pause: ${policy.integrations_since_pause}.`,
         "Give Ton a brief summary, then call record_summary_pause with the current integration count before assigning or waking more work."
       ].join("\n")
@@ -872,8 +887,8 @@ function buildSlotWakePrompt(slot, unread) {
     .filter(Boolean);
   const subjectLine = subjects.length ? `Unread subjects: ${subjects.join("; ")}` : "Unread inbox is waiting.";
   return [
-    `Codextrator wake for ${slot.slot}.`,
-    "Use the auralis-codextrator MCP tools; do not rely on Desktop automation resume.",
+    `Codenator wake for ${slot.slot}.`,
+    "Use the auralis-codenator MCP tools; legacy auralis-codextrator aliases are accepted. Do not rely on Desktop automation resume.",
     "First read your inbox with mark_read=false, then call claim_next_task for your slot if a task is assigned.",
     "Work only inside your registered worktree, run focused tests, commit the slice, and report_commit back to coordinator.",
     subjectLine
@@ -882,8 +897,8 @@ function buildSlotWakePrompt(slot, unread) {
 
 function buildSlotContinuePrompt(slot) {
   return [
-    `Continue your active Codextrator task for ${slot.slot}.`,
-    "Use the auralis-codextrator MCP tools for coordination.",
+    `Continue your active Codenator task for ${slot.slot}.`,
+    "Use the auralis-codenator MCP tools for coordination; legacy auralis-codextrator aliases are accepted.",
     "First record_heartbeat for your slot with status ok.",
     "Then inspect your active task/status; do not claim a new task.",
     "Continue only the active task inside your registered worktree.",

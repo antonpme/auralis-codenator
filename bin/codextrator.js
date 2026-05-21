@@ -77,15 +77,33 @@ function main() {
         throw new Error(`Unknown command: ${command}`);
     }
   } catch (error) {
-    console.error(`codextrator: ${error.message}`);
+    console.error(`codenator: ${error.message}`);
     process.exitCode = 1;
   }
 }
 
 function printHelp() {
-  console.log(`auralis-codextrator
+  console.log(`auralis-codenator
 
 Usage:
+  codenator init [--root PATH]
+  codenator register SLOT --project NAME --focus TEXT --worktree PATH [--branch BRANCH] [--identity NAME]
+  codenator send TO --from SLOT --message TEXT [--subject TEXT]
+  codenator inbox SLOT [--peek] [--json]
+  codenator status [--json]
+  codenator report-commit [--slot SLOT] [--force]
+  codenator task-create SLOT --title TEXT --message TEXT [--task-id ID] [--subject TEXT]
+  codenator task-list [--slot SLOT] [--status STATUS] [--json]
+  codenator task-update TASK_ID [--status STATUS] [--commit SHA] [--blocker TEXT]
+  codenator task-import-inbox SLOT [--dry-run] [--json]
+  codenator slots [--json]
+  codenator heartbeat SLOT --status ok|failed|stale [--automation-id ID] [--thread-id ID] [--error TEXT]
+  codenator recovery [--json]
+  codenator watchdog-check [--json] [--heartbeat-max-minutes N] [--snooze-minutes N] [--dry-run]
+  codenator hook-post-tool-use
+  codenator hook-template
+
+Legacy codextrator commands remain supported:
   codextrator init [--root PATH]
   codextrator register SLOT --project NAME --focus TEXT --worktree PATH [--branch BRANCH] [--identity NAME]
   codextrator send TO --from SLOT --message TEXT [--subject TEXT]
@@ -138,7 +156,8 @@ function cmdInit(opts) {
   if (!fs.existsSync(registryPath)) {
     writeJson(registryPath, {
       version: 1,
-      name: "auralis-codextrator",
+      name: "auralis-codenator",
+      legacy_names: ["auralis-codextrator"],
       created_at: now(),
       updated_at: now(),
       coordinator: {
@@ -270,7 +289,7 @@ function cmdStatus(opts) {
     return;
   }
 
-  console.log("Auralis Codextrator status");
+  console.log("Auralis Codenator status");
   for (const row of rows) {
     console.log(
       `${row.slot.padEnd(12)} unread=${String(row.unread).padEnd(2)} ` +
@@ -527,7 +546,7 @@ function cmdSlots(opts) {
     return;
   }
 
-  console.log("Codextrator slots");
+  console.log("Codenator slots");
   for (const row of rows) {
     const heartbeat = row.heartbeat_status ? ` heartbeat=${row.heartbeat_status}` : "";
     const currentTask = row.current_task_id ? ` task=${row.current_task_id}` : "";
@@ -581,7 +600,7 @@ function cmdRecovery(opts) {
     return;
   }
 
-  console.log("Codextrator recovery");
+  console.log("Codenator recovery");
   for (const row of rows) {
     console.log(`${row.slot.padEnd(12)} ${row.recommendation.padEnd(22)} unread=${String(row.unread).padEnd(2)} status=${row.status}${row.reason ? ` reason=${row.reason}` : ""}`);
   }
@@ -631,7 +650,7 @@ function cmdWatchdogCheck(opts) {
     return;
   }
 
-  console.log(`Codextrator watchdog: ${decision}`);
+  console.log(`Codenator watchdog: ${decision}`);
   const visible = decision === "NOTIFY" ? unsuppressed : suppressed;
   if (visible.length === 0) {
     console.log("No actionable coordinator watchdog alert.");
@@ -1041,7 +1060,7 @@ function readHeartbeat(store, slot) {
 }
 
 function findStore() {
-  const envRoot = process.env.AURALIS_CODEXTRATOR_ROOT;
+  const envRoot = process.env.AURALIS_CODENATOR_ROOT || process.env.AURALIS_CODEXTRATOR_ROOT;
   if (envRoot) {
     const store = path.join(path.resolve(envRoot), STORE_NAME);
     if (fs.existsSync(store)) return store;
@@ -1056,7 +1075,7 @@ function findStore() {
     current = parent;
   }
 
-  throw new Error(`Could not find ${STORE_NAME}. Run init first or set AURALIS_CODEXTRATOR_ROOT.`);
+  throw new Error(`Could not find ${STORE_NAME}. Run init first or set AURALIS_CODENATOR_ROOT or legacy AURALIS_CODEXTRATOR_ROOT.`);
 }
 
 function readRegistry(store) {

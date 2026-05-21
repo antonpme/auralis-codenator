@@ -31,8 +31,8 @@ const {
 function parseArgs() {
   const args = process.argv.slice(2);
   const config = {
-    root: process.env.AURALIS_CODEXTRATOR_ROOT || process.cwd(),
-    agent: process.env.AURALIS_CODEXTRATOR_AGENT || "coordinator"
+    root: process.env.AURALIS_CODENATOR_ROOT || process.env.AURALIS_CODEXTRATOR_ROOT || process.cwd(),
+    agent: process.env.AURALIS_CODENATOR_AGENT || process.env.AURALIS_CODEXTRATOR_AGENT || "coordinator"
   };
   for (let i = 0; i < args.length; i += 1) {
     if (args[i] === "--root") config.root = args[++i];
@@ -53,7 +53,7 @@ function tools() {
   return [
     {
       name: "get_status",
-      description: "Read Codextrator slot, unread inbox, heartbeat, and task state without resuming Codex Desktop threads.",
+      description: "Read Codenator slot, unread inbox, heartbeat, and task state without resuming Codex Desktop threads.",
       inputSchema: { type: "object", properties: {} }
     },
     {
@@ -78,7 +78,7 @@ function tools() {
     },
     {
       name: "send_message",
-      description: "Append a durable message to the Codextrator ledger. Recipients read it through cursor-based inboxes.",
+      description: "Append a durable message to the Codenator ledger. Recipients read it through cursor-based inboxes.",
       inputSchema: {
         type: "object",
         properties: {
@@ -107,7 +107,7 @@ function tools() {
     },
     {
       name: "get_focus_board",
-      description: "Read the shared Codextrator Focus Board snapshot. Coordinator and workers can see all milestones, lanes, tasks, reports, and integration receipts; only coordinator should manage backlog.",
+      description: "Read the shared Codenator Focus Board snapshot. Coordinator and workers can see all milestones, lanes, tasks, reports, and integration receipts; only coordinator should manage backlog.",
       inputSchema: {
         type: "object",
         properties: {
@@ -277,15 +277,15 @@ async function main() {
   const config = parseArgs();
   const storeDir = store.ensureStore(config.root, config.agent);
   const log = (...items) => process.stderr.write(`${items.join(" ")}\n`);
-  log(`[auralis-codextrator] MCP starting: agent=${config.agent}`);
-  log(`[auralis-codextrator] Root: ${path.resolve(config.root)}`);
+  log(`[auralis-codenator] MCP starting: agent=${config.agent}`);
+  log(`[auralis-codenator] Root: ${path.resolve(config.root)}`);
 
   const mcp = new Server(
-    { name: "auralis-codextrator", version: "0.3.0" },
+    { name: "auralis-codenator", version: "0.4.0" },
     {
       capabilities: { tools: {} },
       instructions: [
-        "auralis-codextrator coordinates Codex focus slots through MCP.",
+        "auralis-codenator coordinates Codex focus slots through MCP. Legacy Codextrator aliases remain supported.",
         "Use cursor-based inboxes and durable task state. Do not depend on Codex Desktop automation resume.",
         "Stable slot ids identify focus lanes; optional run_id identifies the currently live Codex session.",
         `This agent: ${config.agent}.`
@@ -363,6 +363,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  process.stderr.write(`[auralis-codextrator] Fatal: ${error.stack || error.message}\n`);
+  process.stderr.write(`[auralis-codenator] Fatal: ${error.stack || error.message}\n`);
   process.exit(1);
 });

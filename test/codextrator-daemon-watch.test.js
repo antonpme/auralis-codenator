@@ -184,7 +184,7 @@ try {
   });
   assert.strictEqual(result.ok, true);
   assert.strictEqual(result.summary.sent, 1);
-  assert.match(result.attempts[0].prompt, /Codextrator work wake for session-04/);
+  assert.match(result.attempts[0].prompt, /Codenator work wake for session-04/);
   assert.match(result.attempts[0].prompt, /record_heartbeat for session-04 with status ok/);
   assert.match(result.attempts[0].prompt, /If and only if a task\.assign is present/);
   assert.match(result.attempts[0].prompt, /Do not touch live\/v1 roots/);
@@ -199,7 +199,7 @@ try {
     promptMode: "work",
     sandbox: "danger-full-access",
     sendTurnToThread: (input) => ({
-      ok: input.prompt.includes("Continue your active Codextrator task") &&
+      ok: input.prompt.includes("Continue your active Codenator task") &&
         !input.prompt.includes("claim_next_task") &&
         input.approveSafeCommands === true &&
         path.resolve(input.codextratorMcpRoot) === path.resolve(workspaceRoot) &&
@@ -218,7 +218,7 @@ try {
   assert.strictEqual(result.ok, true);
   assert.strictEqual(result.summary.sent, 1);
   assert.strictEqual(result.attempts[0].action, "continue_task");
-  assert.match(result.attempts[0].prompt, /Continue your active Codextrator task/);
+  assert.match(result.attempts[0].prompt, /Continue your active Codenator task/);
 
   console.log("codextrator-daemon-watch.test.js: PASS");
 } finally {

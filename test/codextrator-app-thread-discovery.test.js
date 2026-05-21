@@ -80,7 +80,7 @@ try {
     id: "thread-coordinator",
     timestamp: "2026-05-19T09:10:00.000Z",
     mtime: "2026-05-19T09:40:00.000Z",
-    text: "Auralis Codextrator coordinator, slot coordinator."
+    text: "Auralis Codenator coordinator, slot coordinator."
   });
   writeSession("2026/05/19/rollout-guardian.jsonl", {
     id: "thread-guardian",

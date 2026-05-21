@@ -1,13 +1,13 @@
 ---
 name: codextrator
-description: Coordinate parallel Codex focus slots with Auralis Codextrator. Use when managing or participating in Codextrator coordinator/focus-slot work, reading or updating the Focus Board, assigning tasks, waking slots through app-server, reporting commits, integrating worker reports, or maintaining MCP-ledger-backed parallel Codex workflows.
+description: Coordinate parallel Codex focus slots with Auralis Codenator. Use when managing or participating in Codenator coordinator/focus-slot work, reading or updating the Focus Board, assigning tasks, waking slots through app-server, reporting commits, integrating worker reports, or maintaining MCP-ledger-backed parallel Codex workflows. Legacy Codextrator aliases remain supported.
 ---
 
-# Auralis Codextrator
+# Auralis Codenator
 
-Use Codextrator as its own coordination layer. It is not a project-specific
+Use Codenator as its own coordination layer. It is not a project-specific
 task system, and it is not tied to one project. A project such as
-`demo-project` is a task field inside Codextrator.
+`demo-project` is a task field inside Codenator.
 
 ## Model
 

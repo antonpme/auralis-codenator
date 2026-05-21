@@ -17,9 +17,9 @@ assert.strictEqual(typeof startPersistentThread, "function");
 const heartbeatApproval = {
   threadId: "thread-session-04",
   turnId: "turn-session-04",
-  serverName: "auralis-codextrator",
+  serverName: "auralis-codenator",
   mode: "form",
-  message: "Allow the auralis-codextrator MCP server to run tool \"record_heartbeat\"?",
+  message: "Allow the auralis-codenator MCP server to run tool \"record_heartbeat\"?",
   meta: {
     codex_approval_kind: "mcp_tool_call"
   },
@@ -38,8 +38,8 @@ assert.deepStrictEqual(decision, {
 
 decision = decideMcpElicitationResponse({
   ...heartbeatApproval,
-  serverName: "auralis_codextrator",
-  message: "Allow the auralis_codextrator MCP server to run tool \"record_heartbeat\"?"
+  serverName: "auralis_codenator",
+  message: "Allow the auralis_codenator MCP server to run tool \"record_heartbeat\"?"
 }, {
   approveCodextratorMcp: true
 });
@@ -50,6 +50,7 @@ assert.deepStrictEqual(decision, {
 
 decision = decideMcpElicitationResponse({
   ...heartbeatApproval,
+  serverName: "auralis-codextrator",
   message: "Allow the auralis-codextrator MCP server to run tool \"get_focus_board\"?"
 }, {
   approveCodextratorMcp: true
@@ -61,7 +62,7 @@ assert.deepStrictEqual(decision, {
 
 decision = decideMcpElicitationResponse({
   ...heartbeatApproval,
-  message: "Allow the auralis-codextrator MCP server to run tool \"unknown_tool\"?"
+  message: "Allow the auralis-codenator MCP server to run tool \"unknown_tool\"?"
 }, {
   approveCodextratorMcp: true
 });
@@ -106,16 +107,16 @@ const invocation = makeAppServerInvocation("ws://127.0.0.1:4575", {
 });
 assert.strictEqual(invocation.command, "codex");
 assert.deepStrictEqual(invocation.args.slice(0, 3), ["app-server", "--listen", "ws://127.0.0.1:4575"]);
-assert.ok(invocation.args.includes("mcp_servers.auralis_codextrator.command='node'"));
+assert.ok(invocation.args.includes("mcp_servers.auralis_codenator.command='node'"));
 assert.ok(invocation.args.some((arg) => (
-  arg.includes("mcp_servers.auralis_codextrator.args=") &&
+  arg.includes("mcp_servers.auralis_codenator.args=") &&
   arg.includes("src/server.js") &&
   arg.includes("--root") &&
   arg.includes("codextrator-root") &&
   arg.includes("--agent") &&
   arg.includes("session-05")
 )));
-assert.match(invocation.display, /auralis-codextrator/);
+assert.match(invocation.display, /auralis_codenator/);
 
 const worktree = path.join(os.tmpdir(), "codextrator-worktrees", "demo-project", "process-orchestration");
 const commandApproval = {

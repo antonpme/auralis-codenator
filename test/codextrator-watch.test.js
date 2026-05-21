@@ -97,7 +97,7 @@ try {
   action = plan.actions.find((item) => item.slot === "session-01");
   assert.strictEqual(action.action, "continue_task");
   assert.strictEqual(action.reason, "task_active");
-  assert.match(action.prompt, /Continue your active Codextrator task/);
+  assert.match(action.prompt, /Continue your active Codenator task/);
   assert.strictEqual(action.adapter_request.adapter, "codex-app-server");
   assert.deepStrictEqual(action.adapter_request.requires, ["app_server_thread_id"]);
 

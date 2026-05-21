@@ -58,7 +58,7 @@ async function main() {
     assert.strictEqual(snapshot.wake_plan.decision, "WAKE");
 
     const html = renderHtml({ pollMs: 1000, rootLabel: workspaceRoot });
-    assert.match(html, /Auralis Codextrator Admin/);
+    assert.match(html, /Auralis Codenator Admin/);
     assert.match(html, /api\/snapshot/);
 
     const server = createAdminServer({
@@ -77,7 +77,7 @@ async function main() {
       assert.strictEqual(health.ok, true);
 
       const liveSnapshot = await getJson(`${baseUrl}/api/snapshot`);
-      assert.strictEqual(liveSnapshot.board.board.name, "Auralis Codextrator Focus Board");
+      assert.strictEqual(liveSnapshot.board.board.name, "Auralis Codenator Focus Board");
       assert.strictEqual(liveSnapshot.status.slots.some((slot) => slot.slot === "session-05"), true);
 
       const page = await getText(`${baseUrl}/`);

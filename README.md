@@ -1,10 +1,14 @@
-# auralis-codextrator
+# auralis-codenator
 
 Parallel session orchestration for Codex Desktop.
 
-`auralis-codextrator` is a small local utility for coordinating multiple
+`auralis-codenator` is a small local utility for coordinating multiple
 focused Codex Desktop sessions across projects, worktrees, inboxes, hooks, and
 commit reports, and a shared Focus Board.
+
+The project was originally named Auralis Codextrator. Existing `codextrator`
+CLI commands, environment variables, and `.auralis-codextrator` store paths
+remain supported as legacy aliases so existing ledgers do not need migration.
 
 It is intentionally not an agent identity system. A session slot such as
 `session-01` is only a technical focus slot. Identity, project, focus, worktree,
@@ -34,18 +38,19 @@ and branch live in the registry metadata.
 This repository now carries a local Codex plugin bundle:
 
 - `.codex-plugin/plugin.json`: plugin metadata.
-- `.mcp.json`: local MCP server wiring for the durable Codextrator ledger.
+- `.mcp.json`: local MCP server wiring for the durable Codenator ledger.
 - `skills/codextrator/SKILL.md`: coordinator and worker operating guidance.
 
 The bundle is local-path neutral. After connecting it as a local Codex plugin
-and restarting Codex, the `auralis-codextrator` MCP server exposes the same
+and restarting Codex, the `auralis-codenator` MCP server exposes the same
 ledger, task, wake, report, and Focus Board tools from inside Codex. Set
-`AURALIS_CODEXTRATOR_ROOT` in the host environment when you want all sessions
-to share a specific durable ledger directory.
+`AURALIS_CODENATOR_ROOT` in the host environment when you want all sessions to
+share a specific durable ledger directory. The legacy
+`AURALIS_CODEXTRATOR_ROOT` name is still accepted.
 
 ## MCP Mode
 
-Codextrator now has an MCP server that uses the same local store without relying
+Codenator now has an MCP server that uses the same local store without relying
 on Codex Desktop automations or `target_thread_id` resume.
 
 Run it with:
@@ -59,7 +64,7 @@ node .\src\server.js `
 Suggested Codex MCP config:
 
 ```toml
-[mcp_servers.auralis-codextrator]
+[mcp_servers.auralis-codenator]
 command = "node"
 args = ["./src/server.js"]
 ```
@@ -94,7 +99,7 @@ Actual coordination should happen through the MCP inbox/task/report tools.
 
 ### Browser Admin Dashboard
 
-`codextrator-admin` starts a local read-only dashboard over the same durable
+`codenator-admin` starts a local read-only dashboard over the same durable
 MCP ledger. It does not assign tasks, clear inboxes, wake sessions, mutate
 Codex Desktop state, or integrate commits. Use it when humans need visibility
 without keeping worker chats open in the Codex Desktop sidebar.
@@ -228,7 +233,7 @@ node .\bin\codextrator-app-thread-start.js `
 ```
 
 The command prints the new thread id and verifies the thread can answer a
-readiness turn. It does not mutate the Codextrator registry by itself; register
+readiness turn. It does not mutate the Codenator registry by itself; register
 the returned id with `register_slot` or run discovery/apply afterward. This
 keeps thread creation separate from durable slot metadata.
 
@@ -253,7 +258,7 @@ node .\bin\codextrator-app-thread-discover.js `
   --json
 ```
 
-This only writes `app_server_thread_id` metadata to the Codextrator registry.
+This only writes `app_server_thread_id` metadata to the Codenator registry.
 It does not send app-server turns, claim tasks, clear inboxes, or touch Desktop
 automations.
 
@@ -401,7 +406,7 @@ frequent Codex cron automation when sidebar noise matters.
 Example quiet local check:
 
 ```powershell
-$env:AURALIS_CODEXTRATOR_ROOT = "C:\codextrator-ledger"
+$env:AURALIS_CODENATOR_ROOT = "C:\codextrator-ledger"
 node .\bin\codextrator.js watchdog-check `
   --json `
   --snooze-minutes 20
@@ -421,6 +426,9 @@ Submit a commit report from the current worktree:
 ```powershell
 codextrator report-commit
 ```
+
+The `codenator` binary name is preferred for new usage. The older
+`codextrator` binary remains available for compatibility.
 
 ## Codex Hooks
 
@@ -452,6 +460,9 @@ global Codex config.
   tasks/
   hooks/
 ```
+
+The store directory keeps the original `.auralis-codextrator` name for
+compatibility. Treat it as Codenator-owned data.
 
 ## Design Notes
 

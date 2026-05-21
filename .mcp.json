@@ -1,11 +1,11 @@
 {
   "mcpServers": {
-    "auralis-codextrator": {
+    "auralis-codenator": {
       "command": "node",
       "args": [
         "./src/server.js"
       ],
-      "note": "Local Auralis Codextrator MCP server. Set AURALIS_CODEXTRATOR_ROOT and AURALIS_CODEXTRATOR_AGENT in the host environment when you need a specific shared ledger or agent id."
+      "note": "Local Auralis Codenator MCP server. Set AURALIS_CODENATOR_ROOT/AURALIS_CODENATOR_AGENT or legacy AURALIS_CODEXTRATOR_ROOT/AURALIS_CODEXTRATOR_AGENT in the host environment when you need a specific shared ledger or agent id. Existing external configs that still name this server auralis-codextrator continue to work because the server is name-agnostic and the app-server approver accepts the legacy name."
     }
   }
 }

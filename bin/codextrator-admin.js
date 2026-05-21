@@ -24,7 +24,7 @@ function main() {
   server.listen(port, host, () => {
     const address = server.address();
     const actualPort = address && address.port ? address.port : port;
-    console.log(`Auralis Codextrator Admin: http://${host}:${actualPort}`);
+    console.log(`Auralis Codenator Admin: http://${host}:${actualPort}`);
     console.log(`Store: ${server.storeDir}`);
     console.log("Mode: read-only dashboard");
   });
@@ -61,7 +61,7 @@ Usage:
   codextrator-admin [--root PATH] [--host 127.0.0.1] [--port 8787]
                     [--heartbeat-max-minutes N] [--poll-ms N]
 
-Starts a local read-only browser dashboard for the Codextrator Focus Board,
+Starts a local read-only browser dashboard for the Codenator Focus Board,
 slot registry, task pool, and wake-plan state.
 `);
 }

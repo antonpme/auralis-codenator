@@ -160,12 +160,12 @@ try {
 
   run("git", ["init"], { cwd: worktree });
   run("git", ["config", "user.email", "codextrator-test@example.invalid"], { cwd: worktree });
-  run("git", ["config", "user.name", "Codextrator Test"], { cwd: worktree });
+  run("git", ["config", "user.name", "Codenator Test"], { cwd: worktree });
   fs.writeFileSync(path.join(worktree, "README.md"), "# Demo\n", "utf8");
   run("git", ["add", "README.md"], { cwd: worktree });
   run("git", ["commit", "-m", "feat: demo commit"], { cwd: worktree });
 
-  const env = { AURALIS_CODEXTRATOR_ROOT: workspaceRoot };
+  const env = { AURALIS_CODENATOR_ROOT: workspaceRoot };
   const reportOutput = runCodextrator(["report-commit", "--slot", "session-01"], { cwd: worktree, env });
   assert.match(reportOutput, /Reported commit/);
   const sha = run("git", ["rev-parse", "HEAD"], { cwd: worktree }).trim();

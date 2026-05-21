@@ -5,11 +5,15 @@ const os = require("os");
 const path = require("path");
 const { spawn, spawnSync } = require("child_process");
 
-const CODEXTRATOR_MCP_SERVER = "auralis-codextrator";
-const CODEXTRATOR_MCP_SERVER_ALIAS = "auralis_codextrator";
+const CODENATOR_MCP_SERVER = "auralis-codenator";
+const CODENATOR_MCP_SERVER_ALIAS = "auralis_codenator";
+const LEGACY_CODEXTRATOR_MCP_SERVER = "auralis-codextrator";
+const LEGACY_CODEXTRATOR_MCP_SERVER_ALIAS = "auralis_codextrator";
 const CODEXTRATOR_MCP_SERVER_NAMES = new Set([
-  CODEXTRATOR_MCP_SERVER,
-  CODEXTRATOR_MCP_SERVER_ALIAS
+  CODENATOR_MCP_SERVER,
+  CODENATOR_MCP_SERVER_ALIAS,
+  LEGACY_CODEXTRATOR_MCP_SERVER,
+  LEGACY_CODEXTRATOR_MCP_SERVER_ALIAS
 ]);
 const CODEXTRATOR_MCP_TOOLS = new Set([
   "claim_next_task",
@@ -25,7 +29,7 @@ function makeAppServerInvocation(url, opts = {}) {
   const command = opts.codexCommand || process.env.CODEX_CLI_PATH || "codex";
   const args = ["app-server", "--listen", url];
   if (opts.codextratorMcpRoot) {
-    const serverName = opts.codextratorMcpServerName || CODEXTRATOR_MCP_SERVER_ALIAS;
+    const serverName = opts.codextratorMcpServerName || CODENATOR_MCP_SERVER_ALIAS;
     const serverScript = opts.codextratorMcpServer || path.join(__dirname, "server.js");
     args.push(
       "-c",
@@ -36,7 +40,7 @@ function makeAppServerInvocation(url, opts = {}) {
         "--root",
         toConfigPath(opts.codextratorMcpRoot),
         "--agent",
-        String(opts.codextratorMcpAgent || "codextrator-app-server")
+        String(opts.codextratorMcpAgent || "codenator-app-server")
       ])}`
     );
   }
@@ -101,8 +105,8 @@ async function runProof(opts = {}) {
   }, async ({ client }) => {
     evidence.initialize = await client.request("initialize", {
       clientInfo: {
-        name: "auralis-codextrator-proof",
-        title: "Auralis Codextrator Proof",
+        name: "auralis-codenator-proof",
+        title: "Auralis Codenator Proof",
         version: "0.1.0"
       },
       capabilities: { experimentalApi: true }
@@ -164,7 +168,8 @@ async function sendTurnToThread(opts = {}) {
   });
   evidence.thread_id = opts.threadId;
   evidence.client_options = {
-    approveCodextratorMcp: opts.approveCodextratorMcp === true,
+    approveCodenatorMcp: wantsCodenatorMcpApproval(opts),
+    approveCodextratorMcp: wantsCodenatorMcpApproval(opts),
     approveSafeCommands: opts.approveSafeCommands === true,
     commandApprovalCwd: opts.commandApprovalCwd
       ? path.resolve(opts.commandApprovalCwd)
@@ -180,8 +185,8 @@ async function sendTurnToThread(opts = {}) {
     }, async ({ client }) => {
       evidence.initialize = await client.request("initialize", {
         clientInfo: {
-          name: "auralis-codextrator-wake-adapter",
-          title: "Auralis Codextrator Wake Adapter",
+          name: "auralis-codenator-wake-adapter",
+          title: "Auralis Codenator Wake Adapter",
           version: "0.1.0"
         },
         capabilities: { experimentalApi: true }
@@ -238,7 +243,8 @@ async function startPersistentThread(opts = {}) {
     invocation
   });
   evidence.client_options = {
-    approveCodextratorMcp: opts.approveCodextratorMcp === true,
+    approveCodenatorMcp: wantsCodenatorMcpApproval(opts),
+    approveCodextratorMcp: wantsCodenatorMcpApproval(opts),
     approveSafeCommands: opts.approveSafeCommands === true,
     commandApprovalCwd: opts.commandApprovalCwd
       ? path.resolve(opts.commandApprovalCwd)
@@ -260,8 +266,8 @@ async function startPersistentThread(opts = {}) {
     }, async ({ client }) => {
       evidence.initialize = await client.request("initialize", {
         clientInfo: {
-          name: "auralis-codextrator-thread-start",
-          title: "Auralis Codextrator Thread Start",
+          name: "auralis-codenator-thread-start",
+          title: "Auralis Codenator Thread Start",
           version: "0.1.0"
         },
         capabilities: { experimentalApi: true }
@@ -273,7 +279,7 @@ async function startPersistentThread(opts = {}) {
         sandbox: opts.sandbox || "workspace-write",
         ephemeral: opts.ephemeral === true,
         sessionStartSource: opts.sessionStartSource || "clear",
-        baseInstructions: opts.baseInstructions || "Auralis Codextrator headless focus slot. Use only instructions from the user turn and registered tools."
+        baseInstructions: opts.baseInstructions || "Auralis Codenator headless focus slot. Use only instructions from the user turn and registered tools."
       }, 30000);
 
       const threadId = threadStart.thread.id;
@@ -621,7 +627,7 @@ function summarizeParams(method, params) {
 }
 
 function decideMcpElicitationResponse(params, opts = {}) {
-  if (!opts.approveCodextratorMcp) return null;
+  if (!wantsCodenatorMcpApproval(opts)) return null;
   const request = parseMcpToolApproval(params);
   if (!request) return null;
   const meta = params && (params.meta || params._meta);
@@ -633,6 +639,10 @@ function decideMcpElicitationResponse(params, opts = {}) {
     action: "accept",
     content: {}
   };
+}
+
+function wantsCodenatorMcpApproval(opts = {}) {
+  return opts.approveCodenatorMcp === true || opts.approveCodextratorMcp === true;
 }
 
 function decideCommandApprovalResponse(params, opts = {}) {

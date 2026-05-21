@@ -6,7 +6,7 @@ const { sendTurnToThread } = require("./app-server-client.js");
 const { buildWorkPrompt } = require("./wake-prompts.js");
 
 function runDaemonWatchOnce(input = {}) {
-  const root = path.resolve(input.root || process.env.AURALIS_CODEXTRATOR_ROOT || process.cwd());
+  const root = path.resolve(input.root || process.env.AURALIS_CODENATOR_ROOT || process.env.AURALIS_CODEXTRATOR_ROOT || process.cwd());
   const storeDir = store.ensureStore(root, input.agent || "daemon-watch");
   const plan = store.buildWakePlan(storeDir, {
     adapter: "codex-app-server",
@@ -119,7 +119,7 @@ function runDaemonWatchOnce(input = {}) {
 }
 
 async function runDaemonWatchOnceAsync(input = {}) {
-  const root = path.resolve(input.root || process.env.AURALIS_CODEXTRATOR_ROOT || process.cwd());
+  const root = path.resolve(input.root || process.env.AURALIS_CODENATOR_ROOT || process.env.AURALIS_CODEXTRATOR_ROOT || process.cwd());
   const storeDir = store.ensureStore(root, input.agent || "daemon-watch");
   const plan = store.buildWakePlan(storeDir, {
     adapter: "codex-app-server",

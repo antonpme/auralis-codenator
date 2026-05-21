@@ -12,7 +12,7 @@ function main() {
     return;
   }
 
-  const root = path.resolve(opts.root || process.env.AURALIS_CODEXTRATOR_ROOT || process.cwd());
+  const root = path.resolve(opts.root || process.env.AURALIS_CODENATOR_ROOT || process.env.AURALIS_CODEXTRATOR_ROOT || process.cwd());
   const storeDir = store.ensureStore(root, opts.agent || "app-thread-discovery");
   const slots = parseSlots(opts.slots);
   const discovered = discoverAppThreads({
@@ -94,7 +94,7 @@ function parseArgs(argv) {
 }
 
 function printHuman(result) {
-  console.log(`Codextrator app thread discovery: ${result.proposals.length} proposal(s)`);
+  console.log(`Codenator app thread discovery: ${result.proposals.length} proposal(s)`);
   console.log(`sessions=${result.sessions_root}`);
   for (const proposal of result.proposals) {
     console.log(`${proposal.slot.padEnd(12)} ${proposal.thread_id} ${proposal.confidence} ${proposal.title}`);
@@ -112,7 +112,7 @@ Usage:
                                   [--slots session-01,session-02] [--apply]
                                   [--url ws://127.0.0.1:4575]
 
-Scans Codex Desktop session JSONL files for explicit AOS/Codextrator slot
+Scans Codex Desktop session JSONL files for explicit AOS/Codenator slot
 prompts and proposes app-server thread ids. Default mode is read-only. With
 --apply, writes app_server_thread_id metadata for non-coordinator slots only.
 `);

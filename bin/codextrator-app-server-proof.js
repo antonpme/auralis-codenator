@@ -62,8 +62,8 @@ async function runProof(opts) {
     const client = makeClient(ws, evidence);
     evidence.initialize = await client.request("initialize", {
       clientInfo: {
-        name: "auralis-codextrator-proof",
-        title: "Auralis Codextrator Proof",
+        name: "auralis-codenator-proof",
+        title: "Auralis Codenator Proof",
         version: "0.1.0"
       },
       capabilities: { experimentalApi: true }
@@ -294,7 +294,7 @@ function parseArgs(argv) {
 }
 
 function printHuman(result) {
-  console.log(`Codextrator app-server proof: ${result.ok ? "PASS" : "FAIL"}`);
+  console.log(`Codenator app-server proof: ${result.ok ? "PASS" : "FAIL"}`);
   console.log(`reason=${result.reason}`);
   const evidence = result.evidence || {};
   if (evidence.thread_id) console.log(`thread=${evidence.thread_id}`);

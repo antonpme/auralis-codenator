@@ -41,7 +41,7 @@ async function run(opts) {
     };
   }
 
-  const root = path.resolve(opts.root || process.env.AURALIS_CODEXTRATOR_ROOT || process.cwd());
+  const root = path.resolve(opts.root || process.env.AURALIS_CODENATOR_ROOT || process.env.AURALIS_CODEXTRATOR_ROOT || process.cwd());
   const storeDir = store.ensureStore(root, opts.agent || "wake-adapter");
   const send = truthy(opts.send) && !truthy(opts["dry-run"]);
   const plan = store.buildWakePlan(storeDir, {
@@ -221,11 +221,11 @@ function parseArgs(argv) {
 function printHuman(result) {
   if (result.mode === "test-thread") {
     const proof = result.proof || {};
-    console.log(`Codextrator wake adapter test-thread: ${proof.ok ? "PASS" : "FAIL"}`);
+    console.log(`Codenator wake adapter test-thread: ${proof.ok ? "PASS" : "FAIL"}`);
     console.log(`reason=${proof.reason}`);
     return;
   }
-  console.log(`Codextrator wake adapter: ${result.ok ? "OK" : "BLOCKED"}`);
+  console.log(`Codenator wake adapter: ${result.ok ? "OK" : "BLOCKED"}`);
   console.log(`send=${result.send} planned=${result.summary.planned} sent=${result.summary.sent} blocked=${result.summary.blocked} failed=${result.summary.failed}`);
   for (const action of result.actions) {
     console.log(`${action.slot.padEnd(12)} ${action.reason} ${action.adapter_request && action.adapter_request.mode}`);

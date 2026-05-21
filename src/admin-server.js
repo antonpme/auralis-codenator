@@ -30,7 +30,7 @@ function createAdminServer(options = {}) {
       if (url.pathname === "/api/health") {
         sendJson(response, 200, {
           ok: true,
-          name: "auralis-codextrator-admin",
+          name: "auralis-codenator-admin",
           generated_at: new Date().toISOString()
         });
         return;
@@ -56,8 +56,8 @@ function createAdminServer(options = {}) {
 
 function normalizeOptions(options) {
   return {
-    root: path.resolve(options.root || process.env.AURALIS_CODEXTRATOR_ROOT || process.cwd()),
-    agent: options.agent || process.env.AURALIS_CODEXTRATOR_AGENT || "coordinator",
+    root: path.resolve(options.root || process.env.AURALIS_CODENATOR_ROOT || process.env.AURALIS_CODEXTRATOR_ROOT || process.cwd()),
+    agent: options.agent || process.env.AURALIS_CODENATOR_AGENT || process.env.AURALIS_CODEXTRATOR_AGENT || "coordinator",
     host: options.host || DEFAULT_HOST,
     port: Number(options.port || DEFAULT_PORT),
     heartbeatMaxMinutes: Number(options.heartbeatMaxMinutes || options["heartbeat-max-minutes"] || 100000),
@@ -103,7 +103,7 @@ function renderHtml(input) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Auralis Codextrator Admin</title>
+  <title>Auralis Codenator Admin</title>
   <style>
     :root {
       color-scheme: light;
@@ -404,7 +404,7 @@ function renderHtml(input) {
   <main class="shell">
     <header class="topbar">
       <div>
-        <h1>Auralis Codextrator Admin</h1>
+        <h1>Auralis Codenator Admin</h1>
         <div class="root">${rootLabel}</div>
       </div>
       <div class="status-line">

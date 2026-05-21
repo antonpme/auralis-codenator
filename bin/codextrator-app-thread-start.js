@@ -12,7 +12,7 @@ function main() {
   }
 
   const prompt = opts.prompt || (opts.slot
-    ? `Auralis Codextrator headless slot ${opts.slot}. Reply exactly: READY_${opts.slot.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}.`
+    ? `Auralis Codenator headless slot ${opts.slot}. Reply exactly: READY_${opts.slot.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}.`
     : "");
   const expected = opts.expected || (opts.slot
     ? `READY_${opts.slot.toUpperCase().replace(/[^A-Z0-9]+/g, "_")}`
@@ -71,7 +71,7 @@ function parseArgs(argv) {
 }
 
 function printHuman(result) {
-  console.log(`Codextrator app-thread start: ${result.ok ? "PASS" : "FAIL"}`);
+  console.log(`Codenator app-thread start: ${result.ok ? "PASS" : "FAIL"}`);
   console.log(`reason=${result.reason}`);
   if (result.thread_id) console.log(`thread=${result.thread_id}`);
   const evidence = result.evidence || {};
@@ -87,7 +87,7 @@ Usage:
   codextrator-app-thread-start --slot session-01 --cwd PATH [--json]
   codextrator-app-thread-start --cwd PATH --prompt TEXT --expected TEXT [--json]
 
-Starts a persistent Codex app-server thread for a headless Codextrator focus
+Starts a persistent Codex app-server thread for a headless Codenator focus
 slot, sends an optional readiness prompt, waits for turn completion, and prints
 the thread id. This command does not register the slot; use register_slot or
 codextrator-app-thread-discover to persist the thread id in the ledger.

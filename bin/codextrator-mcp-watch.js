@@ -11,7 +11,7 @@ function main() {
     return;
   }
 
-  const root = path.resolve(opts.root || process.env.AURALIS_CODEXTRATOR_ROOT || process.cwd());
+  const root = path.resolve(opts.root || process.env.AURALIS_CODENATOR_ROOT || process.env.AURALIS_CODEXTRATOR_ROOT || process.cwd());
   const storeDir = store.ensureStore(root, opts.agent || "watcher");
   const plan = store.buildWakePlan(storeDir, {
     adapter: opts.adapter || "notify-only",
@@ -37,7 +37,7 @@ function main() {
     return;
   }
 
-  console.log(`Codextrator MCP watch: ${plan.decision}`);
+  console.log(`Codenator MCP watch: ${plan.decision}`);
   console.log(`adapter=${plan.adapter} wake=${plan.summary.wake} notify=${plan.summary.notify} blocked=${plan.summary.blocked}`);
   for (const action of plan.actions) {
     if (action.action === "ok" || action.action === "idle_healthy") continue;
