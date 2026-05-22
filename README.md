@@ -291,6 +291,22 @@ node .\bin\codenator-daemon-watch.js `
   --interval-ms 300000
 ```
 
+In loop mode, the read-only browser admin dashboard starts automatically on
+`http://127.0.0.1:8787` as part of the daemon process. Use `--no-admin` only
+for headless environments that must not bind a local dashboard port.
+
+To open the dashboard in the system default browser when the daemon starts:
+
+```powershell
+node .\bin\codenator-daemon-watch.js `
+  --root C:\codenator-ledger `
+  --loop `
+  --open-admin
+```
+
+The dashboard is still read-only: it does not assign work, clear inboxes, wake
+sessions, integrate commits, or mutate Desktop state.
+
 Send mode is also opt-in and uses the proven app-server sequence:
 `thread/resume` followed by `turn/start`. A real send must include either an
 explicit `--prompt` for proof/manual use or `--prompt-mode work` for guarded

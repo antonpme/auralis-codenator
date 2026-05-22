@@ -103,6 +103,26 @@ try {
   assert.strictEqual(result.cycles[0].summary.planned, 1);
   assert.strictEqual(wakeFiles(storeDir).length, 0);
 
+  result = JSON.parse(execFileSync(process.execPath, [
+    cli,
+    "--root",
+    workspaceRoot,
+    "--json",
+    "--loop",
+    "--max-cycles",
+    "1",
+    "--heartbeat-max-minutes",
+    "60",
+    "--admin-port",
+    "0"
+  ], {
+    cwd: repoRoot,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"]
+  }));
+  assert.strictEqual(result.admin.started, true);
+  assert.match(result.admin.url, /^http:\/\/127\.0\.0\.1:\d+$/);
+
   fs.rmSync(path.join(workspaceRoot, ".auralis-codextrator"), { recursive: true, force: true });
   storeDir = setupSlot({ threadId: "" });
   result = runDaemonWatchOnce({
