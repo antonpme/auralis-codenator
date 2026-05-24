@@ -3,6 +3,7 @@
 
 const path = require("path");
 const { createRequire } = require("module");
+const { startDaemonAdminDashboard } = require("./daemon-admin.js");
 const store = require("./store.js");
 
 function requireMcp(modulePath) {
@@ -32,13 +33,30 @@ function parseArgs() {
   const args = process.argv.slice(2);
   const config = {
     root: process.env.AURALIS_CODENATOR_ROOT || process.env.AURALIS_CODEXTRATOR_ROOT || process.cwd(),
-    agent: process.env.AURALIS_CODENATOR_AGENT || process.env.AURALIS_CODEXTRATOR_AGENT || "coordinator"
+    agent: process.env.AURALIS_CODENATOR_AGENT || process.env.AURALIS_CODEXTRATOR_AGENT || "coordinator",
+    admin: !disabled(process.env.AURALIS_CODENATOR_ADMIN || process.env.AURALIS_CODEXTRATOR_ADMIN),
+    adminHost: process.env.AURALIS_CODENATOR_ADMIN_HOST || process.env.AURALIS_CODEXTRATOR_ADMIN_HOST,
+    adminPort: process.env.AURALIS_CODENATOR_ADMIN_PORT || process.env.AURALIS_CODEXTRATOR_ADMIN_PORT,
+    adminOpen: truthy(process.env.AURALIS_CODENATOR_OPEN_ADMIN || process.env.AURALIS_CODEXTRATOR_OPEN_ADMIN)
   };
   for (let i = 0; i < args.length; i += 1) {
     if (args[i] === "--root") config.root = args[++i];
     else if (args[i] === "--agent") config.agent = args[++i];
+    else if (args[i] === "--admin") config.admin = true;
+    else if (args[i] === "--no-admin") config.admin = false;
+    else if (args[i] === "--admin-host") config.adminHost = args[++i];
+    else if (args[i] === "--admin-port") config.adminPort = args[++i];
+    else if (args[i] === "--open-admin") config.adminOpen = true;
   }
   return config;
+}
+
+function truthy(value) {
+  return value === true || value === "true" || value === "1" || value === "yes";
+}
+
+function disabled(value) {
+  return value === "false" || value === "0" || value === "no";
 }
 
 function ok(data) {
@@ -279,6 +297,7 @@ async function main() {
   const log = (...items) => process.stderr.write(`${items.join(" ")}\n`);
   log(`[auralis-codenator] MCP starting: agent=${config.agent}`);
   log(`[auralis-codenator] Root: ${path.resolve(config.root)}`);
+  await startMcpAdminDashboard(config, log);
 
   const mcp = new Server(
     { name: "auralis-codenator", version: "0.4.0" },
@@ -360,6 +379,30 @@ async function main() {
 
   const transport = new StdioServerTransport();
   await mcp.connect(transport);
+}
+
+async function startMcpAdminDashboard(config, log) {
+  if (!config.admin) {
+    log("[auralis-codenator] Admin dashboard disabled");
+    return null;
+  }
+
+  try {
+    const admin = await startDaemonAdminDashboard({
+      root: config.root,
+      agent: config.agent,
+      host: config.adminHost,
+      port: config.adminPort,
+      open: config.adminOpen
+    });
+    if (admin.enabled) {
+      log(`[auralis-codenator] Admin dashboard ${admin.status}: ${admin.url}`);
+    }
+    return admin;
+  } catch (error) {
+    log(`[auralis-codenator] Admin dashboard unavailable: ${error.message}`);
+    return null;
+  }
 }
 
 main().catch((error) => {

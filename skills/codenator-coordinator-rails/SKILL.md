@@ -26,6 +26,9 @@ overgrown Codex sessions.
 
 Before any wave, check:
 
+- Codenator admin dashboard health at `http://127.0.0.1:8787/api/health`.
+  The dashboard is read-only visibility for Ton and should be running before
+  long coordinator work.
 - Codenator status, Focus Board, coordinator inbox, and summary-pause state.
 - Repo status and current heads for every touched checkout.
 - Slot health: heartbeat fresh, idle, unread 0, no unintegrated report.

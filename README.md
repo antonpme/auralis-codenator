@@ -107,6 +107,14 @@ MCP ledger. It does not assign tasks, clear inboxes, wake sessions, mutate
 Codex Desktop state, or integrate commits. Use it when humans need visibility
 without keeping worker chats open in the Codex Desktop sidebar.
 
+The Codenator MCP server also starts this dashboard by default when a local
+server process begins, so coordinator work exposes `http://127.0.0.1:8787`
+without a separate manual command. Disable that startup only for constrained
+headless environments with `--no-admin` or `AURALIS_CODENATOR_ADMIN=0`.
+Use `--admin-host`, `--admin-port`, or the matching
+`AURALIS_CODENATOR_ADMIN_HOST` / `AURALIS_CODENATOR_ADMIN_PORT` environment
+variables when the default loopback port is not appropriate.
+
 ```powershell
 node .\bin\codenator-admin.js `
   --root C:\codenator-ledger `

@@ -24,6 +24,11 @@ task system, and it is not tied to one project. A project such as
 
 ## Coordinator Workflow
 
+0. Confirm the read-only admin dashboard is available at
+   `http://127.0.0.1:8787/`. The MCP server should auto-start it by default;
+   if `/api/health` is not `auralis-codenator-admin`, start
+   `codenator-admin --root <workspace-root> --port 8787` before long
+   coordinator work so Ton has visibility.
 1. Call `get_status`, `get_focus_board`, and `read_inbox` for `coordinator`.
 2. For any multi-slot or "до упора" cycle, use the
    `codenator-coordinator-rails` skill before creating or assigning tasks.

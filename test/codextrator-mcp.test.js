@@ -2,6 +2,7 @@
 
 const assert = require("assert");
 const fs = require("fs");
+const net = require("net");
 const os = require("os");
 const path = require("path");
 const { spawn } = require("child_process");
@@ -13,39 +14,11 @@ const worktree = path.join(workspaceRoot, "worktrees", "session-01");
 
 fs.mkdirSync(worktree, { recursive: true });
 
-const proc = spawn(
-  process.execPath,
-  [
-    path.join(repoRoot, "src", "server.js"),
-    "--root",
-    workspaceRoot,
-    "--agent",
-    "coordinator"
-  ],
-  { stdio: ["pipe", "pipe", "pipe"], env: { ...process.env } }
-);
+let proc = null;
 
 let stdoutBuf = "";
 let stderrBuf = "";
 const responses = [];
-
-proc.stdout.on("data", (chunk) => {
-  stdoutBuf += chunk.toString();
-  const lines = stdoutBuf.split("\n");
-  stdoutBuf = lines.pop();
-  for (const line of lines) {
-    if (!line.trim()) continue;
-    try {
-      responses.push(JSON.parse(line));
-    } catch {
-      // Ignore non-RPC output.
-    }
-  }
-});
-
-proc.stderr.on("data", (chunk) => {
-  stderrBuf += chunk.toString();
-});
 
 function send(message) {
   proc.stdin.write(`${JSON.stringify(message)}\n`);
@@ -53,6 +26,24 @@ function send(message) {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function getFreePort() {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      const port = address && address.port;
+      server.close(() => resolve(port));
+    });
+  });
+}
+
+async function getJson(url) {
+  const response = await fetch(url);
+  assert.strictEqual(response.status, 200);
+  return response.json();
 }
 
 async function rpc(id, method, params = {}) {
@@ -83,12 +74,51 @@ async function callTool(id, name, args) {
 
 (async () => {
   try {
+    const adminPort = await getFreePort();
+    proc = spawn(
+      process.execPath,
+      [
+        path.join(repoRoot, "src", "server.js"),
+        "--root",
+        workspaceRoot,
+        "--agent",
+        "coordinator",
+        "--admin-host",
+        "127.0.0.1",
+        "--admin-port",
+        String(adminPort)
+      ],
+      { stdio: ["pipe", "pipe", "pipe"], env: { ...process.env } }
+    );
+
+    proc.stdout.on("data", (chunk) => {
+      stdoutBuf += chunk.toString();
+      const lines = stdoutBuf.split("\n");
+      stdoutBuf = lines.pop();
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          responses.push(JSON.parse(line));
+        } catch {
+          // Ignore non-RPC output.
+        }
+      }
+    });
+
+    proc.stderr.on("data", (chunk) => {
+      stderrBuf += chunk.toString();
+    });
+
     const init = await rpc(1, "initialize", {
       protocolVersion: "2025-06-18",
       clientInfo: { name: "codextrator-mcp-test", version: "1.0.0" },
       capabilities: {}
     });
     assert.strictEqual(init.result.serverInfo.name, "auralis-codenator");
+
+    const health = await getJson(`http://127.0.0.1:${adminPort}/api/health`);
+    assert.strictEqual(health.ok, true);
+    assert.strictEqual(health.name, "auralis-codenator-admin");
 
     const listed = await rpc(2, "tools/list", {});
     const toolNames = listed.result.tools.map((tool) => tool.name);
@@ -281,12 +311,12 @@ async function callTool(id, name, args) {
 
     console.log("codextrator-mcp.test.js: PASS");
   } finally {
-    proc.kill("SIGINT");
+    if (proc) proc.kill("SIGINT");
     await sleep(100);
     fs.rmSync(tmpRoot, { recursive: true, force: true });
   }
 })().catch((error) => {
-  proc.kill("SIGKILL");
+  if (proc) proc.kill("SIGKILL");
   fs.rmSync(tmpRoot, { recursive: true, force: true });
   console.error(error);
   console.error(stderrBuf);
