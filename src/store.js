@@ -49,7 +49,9 @@ function normalizeDetail(input = {}) {
 }
 
 function normalizeRecentLimit(value) {
-  const limit = Number(value || DEFAULT_RECENT_LIMIT);
+  const limit = value === undefined || value === null || value === ""
+    ? DEFAULT_RECENT_LIMIT
+    : Number(value);
   if (!Number.isFinite(limit) || limit < 0) return DEFAULT_RECENT_LIMIT;
   return Math.min(Math.floor(limit), 50);
 }

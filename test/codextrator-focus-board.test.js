@@ -133,9 +133,28 @@ try {
   assert.strictEqual(compactStatus.tasks, undefined);
   assert.strictEqual(compactStatus.progress.total_tasks, 2);
   assert.strictEqual(compactStatus.recent_tasks.length, 2);
-  assert.strictEqual(compactStatus.recent_tasks[0].acceptance_criteria, undefined);
-  assert.strictEqual(compactStatus.recent_tasks[0].required_receipts, undefined);
-  assert.strictEqual(compactStatus.recent_tasks[0].required_receipt_count, 1);
+  const compactCatalogTask = compactStatus.recent_tasks.find((task) => task.task_id === "task-catalog-1");
+  assert.strictEqual(compactCatalogTask.acceptance_criteria, undefined);
+  assert.strictEqual(compactCatalogTask.required_receipts, undefined);
+  assert.strictEqual(compactCatalogTask.required_receipt_count, 1);
+
+  const zeroRecentStatus = storeApi.buildStatus(store, {
+    recent_limit: 0
+  });
+  assert.strictEqual(zeroRecentStatus.detail.recent_limit, 0);
+  assert.strictEqual(zeroRecentStatus.detail.included_tasks, 0);
+  assert.strictEqual(zeroRecentStatus.detail.omitted_tasks, 2);
+  assert.deepStrictEqual(zeroRecentStatus.recent_tasks, []);
+
+  const zeroRecentBoard = storeApi.buildFocusBoardSnapshot(store, {
+    viewer_slot: "coordinator",
+    recent_limit: 0
+  });
+  assert.strictEqual(zeroRecentBoard.detail.recent_limit, 0);
+  assert.strictEqual(zeroRecentBoard.detail.included_tasks, 0);
+  assert.strictEqual(zeroRecentBoard.detail.omitted_tasks, 2);
+  assert.deepStrictEqual(zeroRecentBoard.current_tasks, []);
+  assert.deepStrictEqual(zeroRecentBoard.recent_integration_receipts, []);
 
   const fullStatus = storeApi.buildStatus(store, { detail: "full" });
   assert.strictEqual(fullStatus.detail.mode, "full");
