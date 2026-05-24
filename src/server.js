@@ -71,8 +71,14 @@ function tools() {
   return [
     {
       name: "get_status",
-      description: "Read Codenator slot, unread inbox, heartbeat, and task state without resuming Codex Desktop threads.",
-      inputSchema: { type: "object", properties: {} }
+      description: "Read Codenator slot, unread inbox, heartbeat, and task summary without resuming Codex Desktop threads. Defaults to compact summary output; pass detail=\"full\" only when full task history is needed.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          detail: { type: "string", enum: ["summary", "full"] },
+          recent_limit: { type: "number" }
+        }
+      }
     },
     {
       name: "register_slot",
@@ -125,11 +131,13 @@ function tools() {
     },
     {
       name: "get_focus_board",
-      description: "Read the shared Codenator Focus Board snapshot. Coordinator and workers can see all milestones, lanes, tasks, reports, and integration receipts; only coordinator should manage backlog.",
+      description: "Read the shared Codenator Focus Board snapshot. Defaults to compact summary output to keep Codex Desktop responsive; pass detail=\"full\" only when full tasks, reports, and integration receipts are needed.",
       inputSchema: {
         type: "object",
         properties: {
-          viewer_slot: { type: "string" }
+          viewer_slot: { type: "string" },
+          detail: { type: "string", enum: ["summary", "full"] },
+          recent_limit: { type: "number" }
         }
       }
     },
@@ -320,7 +328,7 @@ async function main() {
     try {
       switch (name) {
         case "get_status":
-          return ok(store.buildStatus(storeDir));
+          return ok(store.buildStatus(storeDir, args));
         case "register_slot":
           return ok({ slot: store.registerSlot(storeDir, args) });
         case "send_message":

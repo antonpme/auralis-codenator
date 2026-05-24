@@ -68,9 +68,10 @@ function normalizeOptions(options) {
 function buildSnapshot(storeDir, config = {}) {
   return {
     generated_at: new Date().toISOString(),
-    status: storeApi.buildStatus(storeDir),
+    status: storeApi.buildStatus(storeDir, { detail: "full" }),
     board: storeApi.buildFocusBoardSnapshot(storeDir, {
-      viewer_slot: "coordinator"
+      viewer_slot: "coordinator",
+      detail: "full"
     }),
     wake_plan: storeApi.buildWakePlan(storeDir, {
       adapter: "codex-app-server",

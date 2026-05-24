@@ -17,6 +17,10 @@ task system, and it is not tied to one project. A project such as
 - Browser admin dashboard is a read-only human visibility surface over that
   ledger; it is not a second coordinator and should not mutate task/session
   state.
+- MCP `get_status` and `get_focus_board` default to compact summary output so
+  ordinary coordinator preflight does not flood Codex Desktop. Pass
+  `detail: "full"` only for a deliberate investigation that needs full task,
+  report, and integration history.
 - Codex app-server is the wake adapter.
 - Desktop cron is not the backbone.
 - Coordinator manages backlog and assignments.
@@ -29,7 +33,9 @@ task system, and it is not tied to one project. A project such as
    if `/api/health` is not `auralis-codenator-admin`, start
    `codenator-admin --root <workspace-root> --port 8787` before long
    coordinator work so Ton has visibility.
-1. Call `get_status`, `get_focus_board`, and `read_inbox` for `coordinator`.
+1. Call compact `get_status`, compact `get_focus_board`, and `read_inbox` for
+   `coordinator`. Use `detail: "full"` only when a specific verification or
+   investigation needs the full ledger payload.
 2. For any multi-slot or "до упора" cycle, use the
    `codenator-coordinator-rails` skill before creating or assigning tasks.
 3. Check `progress.summary_pause` or `plan_wake.summary.coordinator_pause`.
@@ -49,8 +55,9 @@ task system, and it is not tied to one project. A project such as
 ## Worker Slot Workflow
 
 1. Call `record_heartbeat` for the current slot.
-2. Call `get_focus_board` with `viewer_slot` set to the slot id. Read the full
-   project state, not only the local task.
+2. Call `get_focus_board` with `viewer_slot` set to the slot id. The compact
+   snapshot is the default; request `detail: "full"` only when the task needs
+   full backlog/report history.
 3. Call `read_inbox` with `mark_read=false`, then `claim_next_task` if assigned.
 4. Work only in the registered worktree and module/lane boundary.
 5. Keep work fixture-backed, deterministic, and non-live unless the task

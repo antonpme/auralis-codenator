@@ -95,6 +95,14 @@ try {
   assert.strictEqual(coordinatorSnapshot.board.name, "Auralis Codenator Focus Board");
   assert.strictEqual(coordinatorSnapshot.visibility.role, "coordinator");
   assert.strictEqual(coordinatorSnapshot.visibility.can_manage_backlog, true);
+  assert.strictEqual(coordinatorSnapshot.detail.mode, "summary");
+  assert.strictEqual(coordinatorSnapshot.tasks, undefined);
+  assert.strictEqual(coordinatorSnapshot.reports, undefined);
+  assert.strictEqual(coordinatorSnapshot.integration_receipts, undefined);
+  assert.strictEqual(coordinatorSnapshot.current_tasks.length, 1);
+  assert.strictEqual(coordinatorSnapshot.current_tasks[0].task_id, "task-catalog-1");
+  assert.strictEqual(coordinatorSnapshot.current_tasks[0].dependencies, undefined);
+  assert.strictEqual(coordinatorSnapshot.current_tasks[0].dependency_count, 1);
   assert.deepStrictEqual(coordinatorSnapshot.progress.status_counts, {
     integrated: 1,
     active: 1
@@ -103,19 +111,35 @@ try {
   assert.strictEqual(coordinatorSnapshot.progress.summary_pause.due, false);
   assert.strictEqual(coordinatorSnapshot.milestones[0].task_counts.integrated, 1);
   assert.strictEqual(coordinatorSnapshot.milestones[0].task_counts.active, 1);
+  assert.strictEqual(coordinatorSnapshot.milestones[0].task_ids, undefined);
   assert.strictEqual(coordinatorSnapshot.lanes.find((lane) => lane.lane_id === "process").owner_slot, "session-02");
   assert.strictEqual(coordinatorSnapshot.assignments["session-02"].current_task_status, "integrated");
-  assert.ok(coordinatorSnapshot.integration_receipts.some((receipt) => receipt.task_id === "task-process-1" && receipt.commit === "abc123"));
+  assert.ok(coordinatorSnapshot.recent_integration_receipts.some((receipt) => receipt.task_id === "task-process-1" && receipt.commit === "abc123"));
 
   const workerSnapshot = storeApi.buildFocusBoardSnapshot(store, {
-    viewer_slot: "session-04"
+    viewer_slot: "session-04",
+    detail: "full"
   });
   assert.strictEqual(workerSnapshot.visibility.role, "worker");
   assert.strictEqual(workerSnapshot.visibility.can_manage_backlog, false);
+  assert.strictEqual(workerSnapshot.detail.mode, "full");
   assert.deepStrictEqual(workerSnapshot.visibility.own_task_ids, ["task-catalog-1"]);
   assert.strictEqual(workerSnapshot.tasks.length, 2);
   assert.strictEqual(workerSnapshot.tasks.find((task) => task.task_id === "task-catalog-1").dependencies[0], "task-process-1");
   assert.strictEqual(workerSnapshot.tasks.find((task) => task.task_id === "task-process-1").status, "integrated");
+
+  const compactStatus = storeApi.buildStatus(store);
+  assert.strictEqual(compactStatus.detail.mode, "summary");
+  assert.strictEqual(compactStatus.tasks, undefined);
+  assert.strictEqual(compactStatus.progress.total_tasks, 2);
+  assert.strictEqual(compactStatus.recent_tasks.length, 2);
+  assert.strictEqual(compactStatus.recent_tasks[0].acceptance_criteria, undefined);
+  assert.strictEqual(compactStatus.recent_tasks[0].required_receipts, undefined);
+  assert.strictEqual(compactStatus.recent_tasks[0].required_receipt_count, 1);
+
+  const fullStatus = storeApi.buildStatus(store, { detail: "full" });
+  assert.strictEqual(fullStatus.detail.mode, "full");
+  assert.strictEqual(fullStatus.tasks.length, 2);
 
   for (let index = 0; index < 34; index += 1) {
     const taskId = `bulk-integrated-${index}`;

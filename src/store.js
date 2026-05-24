@@ -20,6 +20,7 @@ const SUMMARY_PAUSE_MIN_INTEGRATIONS = 30;
 const SUMMARY_PAUSE_RECOMMENDED_INTEGRATIONS = 35;
 const SUMMARY_PAUSE_MAX_INTEGRATIONS = 40;
 const SUMMARY_PAUSE_TYPES = new Set(["coordinator.summary_pause", "summary_pause"]);
+const DEFAULT_RECENT_LIMIT = 10;
 
 function now() {
   return new Date().toISOString();
@@ -40,6 +41,37 @@ function safeStamp() {
 
 function makeId(prefix = "msg") {
   return `${prefix}_${crypto.randomBytes(8).toString("hex")}`;
+}
+
+function normalizeDetail(input = {}) {
+  const value = typeof input === "string" ? input : input.detail;
+  return value === "full" ? "full" : "summary";
+}
+
+function normalizeRecentLimit(value) {
+  const limit = Number(value || DEFAULT_RECENT_LIMIT);
+  if (!Number.isFinite(limit) || limit < 0) return DEFAULT_RECENT_LIMIT;
+  return Math.min(Math.floor(limit), 50);
+}
+
+function recentBy(items, field, limit) {
+  return items
+    .slice()
+    .sort((left, right) => String(right[field] || "").localeCompare(String(left[field] || "")))
+    .slice(0, limit);
+}
+
+function detailMetadata(mode, total, included, kind, limit) {
+  return {
+    mode,
+    recent_limit: limit,
+    [`total_${kind}`]: total,
+    [`included_${kind}`]: included,
+    [`omitted_${kind}`]: mode === "full" ? 0 : Math.max(0, total - included),
+    full_detail_hint: mode === "full"
+      ? ""
+      : "Pass detail: \"full\" only when the full task/report history is explicitly needed."
+  };
 }
 
 function resolveStoreRoot(root) {
@@ -664,7 +696,8 @@ function buildWakePlan(store, input = {}) {
   const heartbeatMaxMs = heartbeatMaxMinutes * MINUTE_MS;
   const adapter = input.adapter || "notify-only";
   const status = buildStatus(store);
-  const summaryPause = buildSummaryPausePolicy(store, status.tasks);
+  const tasks = listTasks(store);
+  const summaryPause = buildSummaryPausePolicy(store, tasks);
 
   if (summaryPause.due) {
     const actions = status.slots.map((slot) => planSummaryPauseAction(slot, summaryPause));
@@ -963,9 +996,12 @@ function recordWakeAttempt(store, input) {
   return attempt;
 }
 
-function buildStatus(store) {
+function buildStatus(store, input = {}) {
+  const detailMode = normalizeDetail(input);
+  const recentLimit = normalizeRecentLimit(input.recent_limit);
   const registry = readRegistry(store);
-  const tasksById = new Map(listTasks(store).map((task) => [task.task_id, task]));
+  const tasks = listTasks(store);
+  const tasksById = new Map(tasks.map((task) => [task.task_id, task]));
   const slots = ["coordinator", ...Object.keys(registry.sessions || {}).sort()].map((slot) => {
     const session = slot === "coordinator" ? registry.coordinator : registry.sessions[slot];
     const task = session.current_task_id ? tasksById.get(session.current_task_id) : null;
@@ -990,7 +1026,8 @@ function buildStatus(store) {
       thread_id: null
     };
   });
-  return {
+  const recentTasks = recentBy(tasks.map((task) => summarizeTaskBrief(task)), "updated_at", recentLimit);
+  const status = {
     registry: {
       version: registry.version,
       name: registry.name,
@@ -998,12 +1035,30 @@ function buildStatus(store) {
       updated_at: registry.updated_at
     },
     slots,
-    tasks: listTasks(store)
+    progress: {
+      status_counts: countBy(tasks, (task) => task.status || "unknown"),
+      total_tasks: tasks.length,
+      active_tasks: tasks.filter((task) => task.status === "active").length,
+      reported_tasks: tasks.filter((task) => task.status === "reported").length,
+      queued_tasks: tasks.filter((task) => task.status === "queued").length,
+      summary_pause: buildSummaryPausePolicy(store, tasks)
+    },
+    detail: detailMetadata(detailMode, tasks.length, detailMode === "full" ? tasks.length : recentTasks.length, "tasks", recentLimit)
   };
+
+  if (detailMode === "full") {
+    status.tasks = tasks;
+  } else {
+    status.recent_tasks = recentTasks;
+  }
+
+  return status;
 }
 
 function buildFocusBoardSnapshot(store, input = {}) {
   const viewerSlot = input.viewer_slot || input.slot || "coordinator";
+  const detailMode = normalizeDetail(input);
+  const recentLimit = normalizeRecentLimit(input.recent_limit);
   const board = readFocusBoard(store);
   const status = buildStatus(store);
   const tasks = listTasks(store).map((task) => summarizeTask(task));
@@ -1031,13 +1086,22 @@ function buildFocusBoardSnapshot(store, input = {}) {
       milestone_id: task.milestone_id,
       lane_id: task.lane_id
     }));
+  const currentTasks = tasks
+    .filter((task) => task.status !== "integrated" && task.status !== "done")
+    .sort((left, right) => String(right.updated_at || right.assigned_at || "").localeCompare(String(left.updated_at || left.assigned_at || "")));
+  const visibleCurrentTasks = detailMode === "full"
+    ? currentTasks
+    : currentTasks.slice(0, recentLimit).map((task) => summarizeTaskBrief(task));
+  const reports = listReports(store);
+  const recentReports = recentBy(reports, "created_at", recentLimit);
+  const recentIntegrationReceipts = recentBy(integrationReceipts, "integrated_at", recentLimit);
   const ownTaskIds = viewerSlot === "coordinator"
     ? []
     : tasks
       .filter((task) => task.slot === viewerSlot && task.status !== "integrated" && task.status !== "done")
       .map((task) => task.task_id);
 
-  return {
+  const snapshot = {
     version: 1,
     generated_at: now(),
     board: {
@@ -1059,13 +1123,22 @@ function buildFocusBoardSnapshot(store, input = {}) {
       active_slots: Object.keys(assignments).length,
       summary_pause: summaryPause
     },
-    milestones: buildMilestoneSummaries(board, tasks),
-    lanes: buildLaneSummaries(board, status, tasks),
-    tasks,
-    assignments,
-    reports: listReports(store),
-    integration_receipts: integrationReceipts
+    detail: detailMetadata(detailMode, tasks.length, detailMode === "full" ? tasks.length : visibleCurrentTasks.length, "tasks", recentLimit),
+    milestones: buildMilestoneSummaries(board, tasks, { includeTaskIds: detailMode === "full" }),
+    lanes: buildLaneSummaries(board, status, tasks, { includeTaskIds: detailMode === "full" }),
+    current_tasks: visibleCurrentTasks,
+    recent_reports: recentReports,
+    recent_integration_receipts: recentIntegrationReceipts,
+    assignments
   };
+
+  if (detailMode === "full") {
+    snapshot.tasks = tasks;
+    snapshot.reports = reports;
+    snapshot.integration_receipts = integrationReceipts;
+  }
+
+  return snapshot;
 }
 
 function summarizeTask(task) {
@@ -1095,7 +1168,37 @@ function summarizeTask(task) {
   };
 }
 
-function buildMilestoneSummaries(board, tasks) {
+function summarizeTaskBrief(task) {
+  const dependencies = normalizeStringArray(task.dependency_ids || task.dependencies);
+  const acceptanceCriteria = normalizeStringArray(task.acceptance_criteria);
+  const requiredReceipts = normalizeStringArray(task.required_receipts);
+  return {
+    task_id: task.task_id,
+    title: task.title,
+    subject: task.subject,
+    status: task.status,
+    slot: task.slot,
+    project: task.project,
+    branch: task.branch,
+    worktree: task.worktree,
+    milestone_id: task.milestone_id || null,
+    lane_id: task.lane_id || null,
+    dependency_count: dependencies.length,
+    acceptance_criteria_count: acceptanceCriteria.length,
+    required_receipt_count: requiredReceipts.length,
+    visible_progress_summary: task.visible_progress_summary || "",
+    commit: task.commit || null,
+    test_count: Array.isArray(task.tests) ? task.tests.length : 0,
+    blocker_count: Array.isArray(task.blockers) ? task.blockers.length : 0,
+    assigned_at: task.assigned_at || null,
+    started_at: task.started_at || null,
+    reported_at: task.reported_at || null,
+    integrated_at: task.integrated_at || null,
+    updated_at: task.updated_at || null
+  };
+}
+
+function buildMilestoneSummaries(board, tasks, options = {}) {
   const knownMilestones = new Map(board.milestones.map((milestone) => [milestone.milestone_id, milestone]));
   for (const task of tasks) {
     if (task.milestone_id && !knownMilestones.has(task.milestone_id)) {
@@ -1112,15 +1215,16 @@ function buildMilestoneSummaries(board, tasks) {
     .sort((left, right) => Number(left.order || 0) - Number(right.order || 0) || left.milestone_id.localeCompare(right.milestone_id))
     .map((milestone) => {
       const milestoneTasks = tasks.filter((task) => task.milestone_id === milestone.milestone_id);
-      return {
+      const summary = {
         ...milestone,
-        task_counts: countBy(milestoneTasks, (task) => task.status || "unknown"),
-        task_ids: milestoneTasks.map((task) => task.task_id)
+        task_counts: countBy(milestoneTasks, (task) => task.status || "unknown")
       };
+      if (options.includeTaskIds) summary.task_ids = milestoneTasks.map((task) => task.task_id);
+      return summary;
     });
 }
 
-function buildLaneSummaries(board, status, tasks) {
+function buildLaneSummaries(board, status, tasks, options = {}) {
   const lanes = new Map(board.lanes.map((lane) => [lane.lane_id, lane]));
   for (const slot of status.slots) {
     if (slot.slot === "coordinator") continue;
@@ -1141,11 +1245,12 @@ function buildLaneSummaries(board, status, tasks) {
     .sort((left, right) => Number(left.order || 0) - Number(right.order || 0) || left.lane_id.localeCompare(right.lane_id))
     .map((lane) => {
       const laneTasks = tasks.filter((task) => task.lane_id === lane.lane_id || (!task.lane_id && task.slot === lane.owner_slot));
-      return {
+      const summary = {
         ...lane,
-        task_counts: countBy(laneTasks, (task) => task.status || "unknown"),
-        task_ids: laneTasks.map((task) => task.task_id)
+        task_counts: countBy(laneTasks, (task) => task.status || "unknown")
       };
+      if (options.includeTaskIds) summary.task_ids = laneTasks.map((task) => task.task_id);
+      return summary;
     });
 }
 

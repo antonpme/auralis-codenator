@@ -74,9 +74,13 @@ args = ["./src/server.js"]
 
 MCP tools:
 
-- `get_status`: read slots, unread cursor counts, heartbeat, and task state.
+- `get_status`: read slots, unread cursor counts, heartbeat, summary-pause
+  state, task counts, and recent tasks. It defaults to compact summary output;
+  pass `detail: "full"` only when full task history is explicitly needed.
 - `get_focus_board`: read the shared backlog, milestone, lane, assignment,
-  report, and integration snapshot.
+  report, and integration snapshot. It defaults to compact summary output with
+  current tasks and recent reports/receipts; pass `detail: "full"` for full
+  task, report, and integration history.
 - `upsert_milestone`: coordinator-only milestone create/update.
 - `upsert_lane`: coordinator-only module lane create/update.
 - `register_slot`: create or refresh a stable focus slot. It can also store an
@@ -99,6 +103,11 @@ MCP tools:
 Design boundary: Codex automations should not be the primary transport for
 focus-slot work. If used later, they should only act as an external watchdog.
 Actual coordination should happen through the MCP inbox/task/report tools.
+
+Default MCP reads are intentionally compact so ordinary coordinator preflight
+does not flood Codex Desktop with hundreds of historical tasks. Use the browser
+admin dashboard for rich human visibility, and use `detail: "full"` only for a
+specific investigation that truly needs the full ledger payload.
 
 ### Browser Admin Dashboard
 
