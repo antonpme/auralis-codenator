@@ -5,6 +5,7 @@ const os = require("os");
 const path = require("path");
 const {
   decideCommandApprovalResponse,
+  decideFileChangeApprovalResponse,
   decideMcpElicitationResponse,
   hasJsonRpcId,
   makeAppServerInvocation,
@@ -126,6 +127,33 @@ const commandApproval = {
   cwd: worktree,
   availableDecisions: ["accept", "decline"]
 };
+
+decision = decideFileChangeApprovalResponse({
+  threadId: "thread-session-02",
+  turnId: "turn-session-02",
+  availableDecisions: ["accept", "decline"]
+}, {
+  approveSafeFileChanges: true
+});
+assert.deepStrictEqual(decision, { decision: "accept" });
+
+decision = decideFileChangeApprovalResponse({
+  threadId: "thread-session-02",
+  turnId: "turn-session-02",
+  availableDecisions: ["accept", "decline"]
+}, {
+  approveSafeFileChanges: false
+});
+assert.strictEqual(decision, null);
+
+decision = decideFileChangeApprovalResponse({
+  threadId: "thread-session-02",
+  turnId: "turn-session-02",
+  availableDecisions: ["decline"]
+}, {
+  approveSafeFileChanges: true
+});
+assert.deepStrictEqual(decision, { decision: "decline" });
 
 decision = decideCommandApprovalResponse({
   ...commandApproval,

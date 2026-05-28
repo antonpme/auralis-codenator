@@ -126,6 +126,7 @@ async function run(opts) {
       timeoutMs: opts["timeout-ms"],
       approveCodextratorMcp: true,
       approveSafeCommands: true,
+      approveSafeFileChanges: true,
       commandApprovalCwd: action.worktree || root
     });
 
@@ -166,6 +167,7 @@ function summarizeTurnEvidence(evidence = {}) {
     interrupt_error: evidence.interrupt_error || null,
     elicitation_responses_tail: Array.isArray(evidence.elicitation_responses) ? evidence.elicitation_responses.slice(-6) : [],
     command_approval_responses_tail: Array.isArray(evidence.command_approval_responses) ? evidence.command_approval_responses.slice(-6) : [],
+    file_change_approval_responses_tail: Array.isArray(evidence.file_change_approval_responses) ? evidence.file_change_approval_responses.slice(-6) : [],
     events_tail: Array.isArray(evidence.events) ? evidence.events.slice(-12) : [],
     stderr_tail: Array.isArray(evidence.stderr_tail) ? evidence.stderr_tail.slice(-6) : []
   };

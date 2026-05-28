@@ -171,6 +171,7 @@ async function sendTurnToThread(opts = {}) {
     approveCodenatorMcp: wantsCodenatorMcpApproval(opts),
     approveCodextratorMcp: wantsCodenatorMcpApproval(opts),
     approveSafeCommands: opts.approveSafeCommands === true,
+    approveSafeFileChanges: opts.approveSafeFileChanges === true,
     commandApprovalCwd: opts.commandApprovalCwd
       ? path.resolve(opts.commandApprovalCwd)
       : (opts.turnCwd ? path.resolve(opts.turnCwd) : cwd)
@@ -246,6 +247,7 @@ async function startPersistentThread(opts = {}) {
     approveCodenatorMcp: wantsCodenatorMcpApproval(opts),
     approveCodextratorMcp: wantsCodenatorMcpApproval(opts),
     approveSafeCommands: opts.approveSafeCommands === true,
+    approveSafeFileChanges: opts.approveSafeFileChanges === true,
     commandApprovalCwd: opts.commandApprovalCwd
       ? path.resolve(opts.commandApprovalCwd)
       : threadCwd
@@ -332,6 +334,7 @@ function makeEvidence(input) {
     responses: {},
     elicitation_responses: [],
     command_approval_responses: [],
+    file_change_approval_responses: [],
     agent_text: "",
     stderr_tail: []
   };
@@ -479,6 +482,17 @@ function makeClient(ws, evidence) {
         });
         if (response) ws.send(JSON.stringify({ id: message.id, result: response }));
       }
+      if (message.method === "item/fileChange/requestApproval" && hasJsonRpcId(message)) {
+        const response = decideFileChangeApprovalResponse(message.params, opts);
+        evidence.file_change_approval_responses.push({
+          at: new Date().toISOString(),
+          id: message.id,
+          method: message.method,
+          decision: response ? response.decision : "unhandled",
+          params: summarizeParams(message.method, message.params)
+        });
+        if (response) ws.send(JSON.stringify({ id: message.id, result: response }));
+      }
     }
     if (hasJsonRpcId(message) && pending.has(message.id)) {
       const item = pending.get(message.id);
@@ -565,6 +579,18 @@ function summarizeParams(method, params) {
       availableDecisions: params.availableDecisions || null,
       additionalPermissions: params.additionalPermissions || null,
       networkApprovalContext: params.networkApprovalContext || null
+    };
+  }
+  if (method === "item/fileChange/requestApproval") {
+    return {
+      threadId: params.threadId || null,
+      turnId: params.turnId || null,
+      itemId: params.itemId || null,
+      approvalId: params.approvalId || null,
+      reason: params.reason || null,
+      cwd: params.cwd || null,
+      fileChanges: params.fileChanges || params.changes || params.files || null,
+      availableDecisions: params.availableDecisions || null
     };
   }
   if (params.thread) {
@@ -656,6 +682,12 @@ function decideCommandApprovalResponse(params, opts = {}) {
   if (isSafePowerShellReadOnlyCommand(request.argv)) return { decision: "accept" };
   const safeArgv = unwrapCommandArgv(request.argv);
   if (!safeArgv || !isSafeWorkerCommand(safeArgv)) return decline;
+  return { decision: "accept" };
+}
+
+function decideFileChangeApprovalResponse(params, opts = {}) {
+  if (!opts.approveSafeFileChanges) return null;
+  if (!decisionAvailable(params, "accept")) return makeCommandDecision(params, "decline");
   return { decision: "accept" };
 }
 
@@ -923,6 +955,7 @@ module.exports = {
   makeAppServerInvocation,
   sandboxPolicyForMode,
   decideCommandApprovalResponse,
+  decideFileChangeApprovalResponse,
   decideMcpElicitationResponse,
   hasJsonRpcId
 };
