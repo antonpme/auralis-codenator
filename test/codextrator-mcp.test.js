@@ -321,6 +321,21 @@ async function callTool(id, name, args) {
     assert.strictEqual(session.current_task_id, null);
     assert.strictEqual(session.current_task_status, "integrated");
 
+    const refreshPlan = await callTool(113, "plan_wake", {
+      adapter: "codex-app-server",
+      heartbeat_max_minutes: 0.001,
+      checked_at: "2099-01-01T00:00:00.000Z"
+    });
+    wakeAction = refreshPlan.actions.find((action) => action.slot === "session-01");
+    assert.strictEqual(refreshPlan.decision, "WAKE");
+    assert.strictEqual(wakeAction.action, "refresh_idle_slot");
+    assert.strictEqual(wakeAction.reason, "heartbeat_overdue");
+    assert.strictEqual(wakeAction.safe_to_assign, false);
+    assert.match(wakeAction.prompt, /Record heartbeat for session-01 with status ok/);
+    assert.match(wakeAction.prompt, /Do not claim a task/);
+    assert.strictEqual(wakeAction.adapter_request.mode, "ready");
+    assert.strictEqual(wakeAction.adapter_request.params.threadId, "app-thread-demo");
+
     const summaryPause = await callTool(14, "record_summary_pause", {
       summary: "MCP test checkpoint summary."
     });

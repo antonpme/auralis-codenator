@@ -734,7 +734,11 @@ function buildWakePlan(store, input = {}) {
     heartbeatMaxMs,
     unread: unreadBySlot.get(slot.slot) || []
   }));
-  const wakeActions = actions.filter((action) => action.action === "wake_slot" || action.action === "continue_task");
+  const wakeActions = actions.filter((action) => (
+    action.action === "wake_slot" ||
+    action.action === "continue_task" ||
+    action.action === "refresh_idle_slot"
+  ));
   const notifyActions = actions.filter((action) => action.notify === true);
   const blockedActions = actions.filter((action) => action.blocked === true);
   const unsafeSlotActions = actions.filter((action) => action.slot !== "coordinator" && action.safe_to_assign === false);
@@ -824,6 +828,17 @@ function planWakeAction(slot, options) {
     });
   }
 
+  if (heartbeatProblem && canRefreshIdleHeartbeat(heartbeatProblem) && slot.unread === 0 && (!slot.current_task_id || slot.current_task_status === "integrated" || slot.current_task_status === "done")) {
+    const prompt = buildSlotHeartbeatRefreshPrompt(slot, heartbeatProblem);
+    return baseWakeAction(slot, {
+      action: "refresh_idle_slot",
+      reason: heartbeatProblem,
+      safe_to_assign: false,
+      prompt,
+      adapter_request: buildAdapterRequest(slot, prompt, options.adapter)
+    });
+  }
+
   if (heartbeatProblem && slot.unread === 0 && (!slot.current_task_id || slot.current_task_status === "integrated" || slot.current_task_status === "done")) {
     return baseWakeAction(slot, {
       action: "idle_stale",
@@ -878,6 +893,10 @@ function planWakeAction(slot, options) {
     reason: "",
     safe_to_assign: true
   });
+}
+
+function canRefreshIdleHeartbeat(heartbeatProblem) {
+  return heartbeatProblem === "heartbeat_overdue" || heartbeatProblem === "heartbeat_missing";
 }
 
 function heartbeatBlocker(slot, options) {
@@ -941,6 +960,17 @@ function buildSlotContinuePrompt(slot) {
     "Continue only the active task inside your registered worktree.",
     "Run focused tests or checks, commit the slice, and report_commit back to coordinator.",
     "If blocked, update_task with the blocker and stop."
+  ].join("\n");
+}
+
+function buildSlotHeartbeatRefreshPrompt(slot, reason) {
+  return [
+    `Codenator heartbeat refresh for ${slot.slot}.`,
+    "Use only the auralis-codenator MCP tools; legacy auralis-codextrator aliases are accepted.",
+    `Record heartbeat for ${slot.slot} with status ok. Previous heartbeat state: ${reason}.`,
+    "Then read your inbox with mark_read=false only to confirm whether unread work exists.",
+    "Do not claim a task, do not edit files, do not run tests, do not commit, and do not report_commit.",
+    "Finish with a short HEARTBEAT_REFRESHED note."
   ].join("\n");
 }
 

@@ -119,6 +119,43 @@ try {
   const wakeFilesAfterDryRun = fs.readdirSync(path.join(workspaceRoot, ".auralis-codextrator", "wake"));
   assert.strictEqual(wakeFilesAfterDryRun.length, 1);
 
+  const refreshRoot = path.join(tmpRoot, "refresh-workspace");
+  const refreshWorktree = path.join(refreshRoot, "worktrees", "session-refresh");
+  fs.mkdirSync(refreshWorktree, { recursive: true });
+  const refreshStore = store.ensureStore(refreshRoot, "coordinator");
+  store.registerSlot(refreshStore, {
+    slot: "session-refresh",
+    project: "demo-project",
+    identity: "worker-refresh",
+    focus: "Heartbeat refresh proof",
+    worktree: refreshWorktree,
+    branch: "codex/heartbeat-refresh",
+    app_server_thread_id: "app-thread-refresh"
+  });
+  store.recordHeartbeat(refreshStore, {
+    slot: "session-refresh",
+    status: "ok",
+    run_id: "old-refresh-run"
+  });
+
+  result = runWakeAdapter([
+    "--root",
+    refreshRoot,
+    "--json",
+    "--dry-run",
+    "--heartbeat-max-minutes",
+    "0.001",
+    "--checked-at",
+    "2099-01-01T00:00:00.000Z"
+  ]);
+  assert.strictEqual(result.data.ok, true);
+  assert.strictEqual(result.data.summary.planned, 1);
+  assert.strictEqual(result.data.actions[0].action, "refresh_idle_slot");
+  assert.match(result.data.actions[0].prompt, /record heartbeat/i);
+  assert.match(result.data.actions[0].prompt, /Do not claim a task/);
+  assert.strictEqual(result.data.actions[0].adapter_request.mode, "ready");
+  assert.strictEqual(result.data.actions[0].adapter_request.params.threadId, "app-thread-refresh");
+
   console.log("codextrator-wake-adapter.test.js: PASS");
 } finally {
   fs.rmSync(tmpRoot, { recursive: true, force: true });
