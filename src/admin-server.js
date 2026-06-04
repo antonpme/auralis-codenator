@@ -107,20 +107,23 @@ function renderHtml(input) {
   <title>Auralis Codenator Admin</title>
   <style>
     :root {
-      color-scheme: light;
-      --bg: #f6f7f9;
-      --surface: #ffffff;
-      --surface-soft: #eef2f6;
-      --line: #d7dde5;
-      --text: #17202a;
-      --muted: #66717f;
-      --accent: #176b87;
-      --accent-soft: #d9edf3;
-      --ok: #26734d;
-      --warn: #a15c05;
-      --bad: #9c2f2f;
-      --violet: #6750a4;
-      --shadow: 0 10px 28px rgba(31, 42, 55, 0.08);
+      color-scheme: dark;
+      --bg: #0d1117;
+      --surface: #151b23;
+      --surface-soft: #1d2631;
+      --surface-strong: #222d39;
+      --line: #2d3846;
+      --line-soft: #24303c;
+      --text: #eef4f9;
+      --muted: #9aa8b6;
+      --accent: #58b7d5;
+      --accent-strong: #2f8eaa;
+      --accent-soft: #173849;
+      --ok: #73d79b;
+      --warn: #f0b660;
+      --bad: #ff7d7d;
+      --violet: #b7a2ff;
+      --shadow: 0 14px 34px rgba(0, 0, 0, 0.24);
     }
     * { box-sizing: border-box; }
     body {
@@ -173,11 +176,11 @@ function renderHtml(input) {
       height: 9px;
       border-radius: 50%;
       background: var(--warn);
-      box-shadow: 0 0 0 3px rgba(161, 92, 5, 0.12);
+      box-shadow: 0 0 0 3px rgba(240, 182, 96, 0.14);
     }
     .pulse.ok {
       background: var(--ok);
-      box-shadow: 0 0 0 3px rgba(38, 115, 77, 0.14);
+      box-shadow: 0 0 0 3px rgba(115, 215, 155, 0.15);
     }
     .summary-grid {
       display: grid;
@@ -231,7 +234,7 @@ function renderHtml(input) {
       gap: 10px;
       padding: 13px 14px;
       border-bottom: 1px solid var(--line);
-      background: #fbfcfd;
+      background: var(--surface-soft);
     }
     .section-title {
       font-size: 14px;
@@ -253,7 +256,7 @@ function renderHtml(input) {
       border: 1px solid var(--line);
       border-radius: 7px;
       overflow: hidden;
-      background: var(--surface);
+      background: var(--surface-soft);
     }
     .segmented button {
       border: 0;
@@ -266,8 +269,12 @@ function renderHtml(input) {
       font-weight: 650;
     }
     .segmented button.active {
-      background: var(--accent);
-      color: #fff;
+      background: var(--accent-strong);
+      color: #ffffff;
+    }
+    .segmented button:hover:not(.active) {
+      background: var(--surface-strong);
+      color: var(--text);
     }
     .search {
       border: 1px solid var(--line);
@@ -275,7 +282,7 @@ function renderHtml(input) {
       min-height: 32px;
       padding: 0 10px;
       min-width: 210px;
-      background: #fff;
+      background: var(--surface-strong);
       color: var(--text);
       font-size: 12px;
     }
@@ -285,7 +292,7 @@ function renderHtml(input) {
     }
     th, td {
       padding: 10px 12px;
-      border-bottom: 1px solid #e8edf2;
+      border-bottom: 1px solid var(--line-soft);
       text-align: left;
       vertical-align: top;
     }
@@ -295,7 +302,7 @@ function renderHtml(input) {
       font-weight: 720;
       text-transform: uppercase;
       letter-spacing: 0.04em;
-      background: #fbfcfd;
+      background: var(--surface-soft);
     }
     tr:last-child td {
       border-bottom: 0;
@@ -325,11 +332,11 @@ function renderHtml(input) {
       border: 1px solid transparent;
       white-space: nowrap;
     }
-    .badge.ok { color: var(--ok); background: #e5f4ed; border-color: #b9ddca; }
-    .badge.warn { color: var(--warn); background: #fff1db; border-color: #f0cf9c; }
-    .badge.bad { color: var(--bad); background: #fbe6e6; border-color: #efbebe; }
-    .badge.info { color: var(--accent); background: var(--accent-soft); border-color: #b8dce8; }
-    .badge.idle { color: var(--violet); background: #eee9fb; border-color: #d7ccf3; }
+    .badge.ok { color: var(--ok); background: rgba(115, 215, 155, 0.11); border-color: rgba(115, 215, 155, 0.32); }
+    .badge.warn { color: var(--warn); background: rgba(240, 182, 96, 0.12); border-color: rgba(240, 182, 96, 0.34); }
+    .badge.bad { color: var(--bad); background: rgba(255, 125, 125, 0.12); border-color: rgba(255, 125, 125, 0.34); }
+    .badge.info { color: var(--accent); background: var(--accent-soft); border-color: rgba(88, 183, 213, 0.34); }
+    .badge.idle { color: var(--violet); background: rgba(183, 162, 255, 0.12); border-color: rgba(183, 162, 255, 0.34); }
     .stack {
       display: flex;
       flex-direction: column;
@@ -347,9 +354,9 @@ function renderHtml(input) {
       gap: 10px;
       align-items: start;
       padding: 10px;
-      border: 1px solid #e3e8ee;
+      border: 1px solid var(--line);
       border-radius: 7px;
-      background: #fff;
+      background: var(--surface-soft);
     }
     .row-title {
       font-weight: 720;
@@ -367,6 +374,9 @@ function renderHtml(input) {
     .scroll {
       max-height: 620px;
       overflow: auto;
+    }
+    .milestones-scroll {
+      max-height: 420px;
     }
     @media (max-width: 1080px) {
       .summary-grid, .layout {
@@ -422,7 +432,16 @@ function renderHtml(input) {
           <div class="section-header">
             <div>
               <h2 class="section-title">Active Sessions</h2>
-              <div class="section-subtitle">Stable slots, health, inbox, and current work.</div>
+              <div class="section-subtitle">Reusable sessions by default; All keeps the full ledger view inspectable.</div>
+            </div>
+            <div class="toolbar">
+              <div class="segmented" id="slotFilters">
+                <button class="active" data-slot-filter="active">Active</button>
+                <button data-slot-filter="current">Current Wave</button>
+                <button data-slot-filter="live">Live</button>
+                <button data-slot-filter="ledger">Ledger</button>
+                <button data-slot-filter="all">All</button>
+              </div>
             </div>
           </div>
           <div class="scroll">
@@ -492,7 +511,9 @@ function renderHtml(input) {
               <div class="section-subtitle">Shared progress across AOS and Cortex lanes.</div>
             </div>
           </div>
-          <div id="milestones" class="list"></div>
+          <div class="scroll milestones-scroll">
+            <div id="milestones" class="list"></div>
+          </div>
         </section>
       </aside>
     </section>
@@ -502,6 +523,7 @@ function renderHtml(input) {
     const pollMs = ${pollMs};
     let snapshot = null;
     let filter = "open";
+    let slotFilter = "active";
     let query = "";
 
     const el = (id) => document.getElementById(id);
@@ -510,6 +532,14 @@ function renderHtml(input) {
       button.addEventListener("click", () => {
         filter = button.dataset.filter;
         document.querySelectorAll("#filters button").forEach((item) => item.classList.toggle("active", item === button));
+        render();
+      });
+    });
+
+    document.querySelectorAll("#slotFilters button").forEach((button) => {
+      button.addEventListener("click", () => {
+        slotFilter = button.dataset.slotFilter;
+        document.querySelectorAll("#slotFilters button").forEach((item) => item.classList.toggle("active", item === button));
         render();
       });
     });
@@ -535,7 +565,8 @@ function renderHtml(input) {
       if (!snapshot) return;
       const slots = snapshot.status.slots.filter((slot) => slot.slot !== "coordinator");
       const wavePool = (snapshot.board && snapshot.board.wave_pool) || {};
-      const currentWaveSlots = wavePool.current_slots || slots.filter((slot) => !slot.is_retired);
+      const currentWaveSlots = currentWaveSlotsFor(slots, wavePool);
+      const visibleSlots = filterSlots(slots, currentWaveSlots, slotFilter);
       const tasks = snapshot.board.tasks || [];
       const openTasks = tasks.filter((task) => !["integrated", "done"].includes(task.status));
       const reportedTasks = tasks.filter((task) => task.status === "reported");
@@ -543,18 +574,19 @@ function renderHtml(input) {
       const wake = snapshot.wake_plan || {};
 
       el("generated").textContent = "Updated " + formatDate(snapshot.generated_at) + " | wake=" + (wake.decision || "unknown");
-      renderMetrics(currentWaveSlots, tasks, openTasks, reportedTasks, wake, wavePool);
-      renderSlots(slots, tasks);
+      renderMetrics(slots, currentWaveSlots, tasks, openTasks, reportedTasks, wake, wavePool);
+      renderSlots(visibleSlots, tasks);
       renderTasks(tasks);
       renderCurrentWork(currentWaveSlots, tasks);
       renderMilestones(snapshot.board.milestones || []);
     }
 
-    function renderMetrics(slots, tasks, openTasks, reportedTasks, wake, wavePool) {
+    function renderMetrics(slots, currentWaveSlots, tasks, openTasks, reportedTasks, wake, wavePool) {
       const integrated = tasks.filter((task) => task.status === "integrated" || task.status === "done").length;
       const blocked = tasks.filter((task) => task.status === "blocked").length;
       const wakeable = slots.filter((slot) => slot.wakeable === true).length;
-      const ledgerOnly = slots.filter((slot) => slot.slot_lifecycle === "ledger_only").length;
+      const activeSlots = slots.filter((slot) => isActiveSession(slot, currentWaveSlots));
+      const ledgerOnly = slots.filter((slot) => slot.slot_lifecycle === "ledger_only" && !slot.is_retired).length;
       const pause = (wake.summary && wake.summary.coordinator_pause) || {};
       const pauseRange = pause.range || {};
       const pauseNote = pause.due
@@ -562,9 +594,10 @@ function renderHtml(input) {
         : (pause.integrations_since_pause || 0) + "/" + (pauseRange.recommended || 35) + " since last summary";
       const currentWave = wavePool.current_wave_id || "current";
       const retiredCount = (wavePool.retired_slots || []).length;
-      const activeSlotNote = currentWave + (retiredCount ? "; " + retiredCount + " retired" : "");
+      const activeSlotNote = wakeable + " live/wakeable; " + currentWaveSlots.length + " in " + currentWave;
       const metrics = [
-        ["Active Slots", slots.length, activeSlotNote],
+        ["Active Sessions", activeSlots.length, activeSlotNote],
+        ["Current Wave", currentWaveSlots.length, retiredCount ? retiredCount + " retired slots hidden by default" : "No retired slots"],
         ["Wakeable", wakeable, ledgerOnly ? ledgerOnly + " ledger-only need app-server thread id" : "All current slots can be woken"],
         ["Open Tasks", openTasks.length, "Queued, active, reported, or blocked"],
         ["Reports Waiting", reportedTasks.length, "Need coordinator verification"],
@@ -582,7 +615,7 @@ function renderHtml(input) {
 
     function renderSlots(slots, tasks) {
       const actions = new Map((snapshot.wake_plan.actions || []).map((action) => [action.slot, action]));
-      el("slots").innerHTML = slots.map((slot) => {
+      el("slots").innerHTML = slots.length ? slots.map((slot) => {
         const action = actions.get(slot.slot) || {};
         const task = tasks.find((item) => item.task_id === slot.current_task_id);
         const now = task
@@ -601,7 +634,7 @@ function renderHtml(input) {
             <td>\${badge(lifecycle)}<div class="small muted mono">\${escapeHtml(threadNote)}</div></td>
           </tr>
         \`;
-      }).join("");
+      }).join("") : \`<tr><td colspan="5"><div class="empty">No sessions match this view.</div></td></tr>\`;
     }
 
     function renderTasks(tasks) {
@@ -650,7 +683,7 @@ function renderHtml(input) {
     }
 
     function renderMilestones(milestones) {
-      el("milestones").innerHTML = milestones.map((milestone) => {
+      el("milestones").innerHTML = milestones.length ? milestones.map((milestone) => {
         const counts = milestone.task_counts || {};
         const countText = Object.entries(counts).map(([key, value]) => key + ":" + value).join("  ");
         return \`
@@ -663,7 +696,43 @@ function renderHtml(input) {
             <div>\${badge(milestone.status || "planned")}</div>
           </div>
         \`;
-      }).join("");
+      }).join("") : \`<div class="empty">No milestones recorded yet.</div>\`;
+    }
+
+    function currentWaveSlotsFor(slots, wavePool) {
+      if (Array.isArray(wavePool.current_slots) && wavePool.current_slots.length) {
+        const slotsByName = new Map(slots.map((slot) => [slot.slot, slot]));
+        return wavePool.current_slots.map((slot) => {
+          const slotName = typeof slot === "string" ? slot : slot.slot;
+          const baseSlot = slotsByName.get(slotName);
+          return baseSlot ? { ...baseSlot, ...(typeof slot === "string" ? {} : slot) } : null;
+        }).filter(Boolean);
+      }
+      return slots.filter((slot) => !slot.is_retired);
+    }
+
+    function filterSlots(slots, currentWaveSlots, selectedFilter) {
+      if (selectedFilter === "all") return slots;
+      if (selectedFilter === "current") return currentWaveSlots;
+      if (selectedFilter === "live") return slots.filter((slot) => isLiveSession(slot));
+      if (selectedFilter === "ledger") return slots.filter((slot) => !slot.is_retired && slot.slot_lifecycle === "ledger_only");
+      return slots.filter((slot) => isActiveSession(slot, currentWaveSlots));
+    }
+
+    function isActiveSession(slot, currentWaveSlots) {
+      if (!slot || slot.is_retired) return false;
+      if (isLiveSession(slot)) return true;
+      if (["queued", "active", "reported", "blocked", "review"].includes(String(slot.current_task_status || ""))) return true;
+      return false;
+    }
+
+    function isLiveSession(slot) {
+      return Boolean(slot && (
+        slot.wakeable === true ||
+        slot.app_server_attached === true ||
+        slot.app_server_thread_id ||
+        slot.slot_lifecycle === "wakeable"
+      ));
     }
 
     function latestTaskForSlot(tasks, slot) {

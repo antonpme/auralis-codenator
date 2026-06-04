@@ -118,6 +118,13 @@ async function main() {
 
       const page = await getText(`${baseUrl}/`);
       assert.match(page, /Active Sessions/);
+      assert.match(page, /Reusable sessions by default/);
+      assert.match(page, /color-scheme: dark/);
+      assert.match(page, /id="slotFilters"/);
+      assert.match(page, /data-slot-filter="active"/);
+      assert.match(page, /data-slot-filter="all"/);
+      assert.match(page, /Current Wave/);
+      assert.match(page, /milestones-scroll/);
       assert.match(page, /Wakeable/);
       assert.match(page, /ledger-only need app-server thread id/);
       assert.match(page, /Task Pool/);

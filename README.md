@@ -150,11 +150,15 @@ node .\bin\codenator-admin.js `
 
 Open the printed local URL in a browser. The dashboard shows:
 
-- active slots, project/focus, heartbeat, inbox, current task, and app-server
-  thread readiness;
+- a dark-theme operator view for evening work;
+- active sessions by default, with tabs for active, current wave, live,
+  ledger-only, and all slots so stale ledger history is not confused with
+  reusable sessions;
+- project/focus, heartbeat, inbox, current task, and app-server thread
+  readiness for the visible slots;
 - task pool filtered by open, reported, integrated, or all tasks;
 - current work per slot, including idle/safe-to-assign wake-plan state;
-- milestones and task-count progress;
+- milestones and task-count progress in a bounded scroll panel;
 - the latest non-mutating `plan_wake` decision.
 
 ### Wake Watcher Proof
