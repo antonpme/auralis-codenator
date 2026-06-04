@@ -17,7 +17,7 @@ function runDaemonWatchOnce(input = {}) {
   const send = input.send === true;
   const sender = input.sendTurnToThread || sendTurnToThread;
   const actions = plan.actions
-    .filter((action) => action.action === "wake_slot" || action.action === "continue_task")
+    .filter(isDaemonSelectedAction)
     .filter((action) => slots.size === 0 || slots.has(action.slot))
     .map((action) => withSelectedPrompt(action, input));
 
@@ -130,7 +130,7 @@ async function runDaemonWatchOnceAsync(input = {}) {
   const send = input.send === true;
   const sender = input.sendTurnToThread || sendTurnToThread;
   const actions = plan.actions
-    .filter((action) => action.action === "wake_slot" || action.action === "continue_task")
+    .filter(isDaemonSelectedAction)
     .filter((action) => slots.size === 0 || slots.has(action.slot))
     .map((action) => withSelectedPrompt(action, input));
 
@@ -248,6 +248,12 @@ function recordTurnResult(storeDir, result, action, turn) {
 
 function isMissingThreadId(request) {
   return Boolean(request.requires && request.requires.includes("app_server_thread_id"));
+}
+
+function isDaemonSelectedAction(action) {
+  return action.action === "wake_slot" ||
+    action.action === "continue_task" ||
+    action.action === "attach_required";
 }
 
 function withPromptOverride(action, prompt) {

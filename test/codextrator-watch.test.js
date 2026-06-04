@@ -51,12 +51,14 @@ try {
     "--heartbeat-max-minutes",
     "60"
   ]));
-  assert.strictEqual(plan.decision, "WAKE");
+  assert.strictEqual(plan.decision, "BLOCKED");
   assert.strictEqual(plan.safety.mutates_tasks, false);
   assert.strictEqual(plan.safety.desktop_automation_resume, false);
   let action = plan.actions.find((item) => item.slot === "session-01");
-  assert.strictEqual(action.action, "wake_slot");
-  assert.match(action.prompt, /claim_next_task/);
+  assert.strictEqual(action.action, "attach_required");
+  assert.strictEqual(action.blocked, true);
+  assert.strictEqual(action.reason, "missing_app_server_thread_id");
+  assert.match(action.prompt, /attach required/);
 
   plan = JSON.parse(runWatch([
     "--root",
@@ -69,6 +71,7 @@ try {
   ]));
   action = plan.actions.find((item) => item.slot === "session-01");
   assert.strictEqual(action.adapter_request.adapter, "codex-app-server");
+  assert.strictEqual(action.adapter_request.mode, "blocked");
   assert.deepStrictEqual(action.adapter_request.requires, ["app_server_thread_id"]);
 
   plan = JSON.parse(runWatch([
@@ -93,12 +96,13 @@ try {
     "--heartbeat-max-minutes",
     "60"
   ]));
-  assert.strictEqual(plan.decision, "WAKE");
+  assert.strictEqual(plan.decision, "BLOCKED");
   action = plan.actions.find((item) => item.slot === "session-01");
-  assert.strictEqual(action.action, "continue_task");
-  assert.strictEqual(action.reason, "task_active");
-  assert.match(action.prompt, /Continue your active Codenator task/);
+  assert.strictEqual(action.action, "attach_required");
+  assert.strictEqual(action.reason, "missing_app_server_thread_id");
+  assert.match(action.prompt, /attach required/);
   assert.strictEqual(action.adapter_request.adapter, "codex-app-server");
+  assert.strictEqual(action.adapter_request.mode, "blocked");
   assert.deepStrictEqual(action.adapter_request.requires, ["app_server_thread_id"]);
 
   const parentRoot = path.join(tmpRoot, "parent-root");
@@ -137,7 +141,8 @@ try {
     "--heartbeat-max-minutes",
     "60"
   ]));
-  assert.ok(plan.actions.some((item) => item.slot === "session-nested" && item.action === "wake_slot"));
+  assert.strictEqual(plan.decision, "BLOCKED");
+  assert.ok(plan.actions.some((item) => item.slot === "session-nested" && item.action === "attach_required"));
 
   console.log("codextrator-watch.test.js: PASS");
 } finally {

@@ -21,12 +21,12 @@ function main() {
 
   if (opts["record-dry-run"]) {
     plan.recorded_attempts = plan.actions
-      .filter((action) => action.action === "wake_slot")
+      .filter((action) => action.action === "wake_slot" || action.action === "attach_required")
       .map((action) => store.recordWakeAttempt(storeDir, {
         slot: action.slot,
         action: action.action,
         adapter: plan.adapter,
-        status: "planned",
+        status: action.blocked ? "blocked" : "planned",
         reason: action.reason,
         prompt: action.prompt
       }));

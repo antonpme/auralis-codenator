@@ -188,6 +188,9 @@ async function callTool(id, name, args) {
     assert.strictEqual(session.wave_id, "wave-old");
     assert.strictEqual(session.thread_id, null);
     assert.strictEqual(session.app_server_thread_id, null);
+    assert.strictEqual(session.slot_lifecycle, "ledger_only");
+    assert.strictEqual(session.wakeable, false);
+    assert.strictEqual(session.wake_blocker, "missing_app_server_thread_id");
 
     const fullStatus = await callTool(111, "get_status", {
       detail: "full"
@@ -199,10 +202,15 @@ async function callTool(id, name, args) {
       heartbeat_max_minutes: 60
     });
     let wakeAction = wakePlan.actions.find((action) => action.slot === "session-01");
-    assert.strictEqual(wakePlan.decision, "WAKE");
-    assert.strictEqual(wakeAction.action, "wake_slot");
+    assert.strictEqual(wakePlan.decision, "BLOCKED");
+    assert.strictEqual(wakePlan.summary.attach_required, 1);
+    assert.strictEqual(wakePlan.summary.blocked_missing_thread, 1);
+    assert.strictEqual(wakeAction.action, "attach_required");
+    assert.strictEqual(wakeAction.blocked, true);
+    assert.strictEqual(wakeAction.slot_lifecycle, "ledger_only");
+    assert.strictEqual(wakeAction.wakeable, false);
     assert.strictEqual(wakeAction.safe_to_assign, false);
-    assert.match(wakeAction.prompt, /claim_next_task/);
+    assert.match(wakeAction.prompt, /attach required/);
     assert.strictEqual(wakeAction.adapter_request.mode, "dry-run");
 
     const appServerPlan = await callTool(104, "plan_wake", {
@@ -210,7 +218,11 @@ async function callTool(id, name, args) {
       heartbeat_max_minutes: 60
     });
     wakeAction = appServerPlan.actions.find((action) => action.slot === "session-01");
+    assert.strictEqual(appServerPlan.decision, "BLOCKED");
+    assert.strictEqual(wakeAction.action, "attach_required");
     assert.strictEqual(wakeAction.adapter_request.adapter, "codex-app-server");
+    assert.strictEqual(wakeAction.adapter_request.mode, "blocked");
+    assert.strictEqual(wakeAction.adapter_request.reason, "missing_app_server_thread_id");
     assert.deepStrictEqual(wakeAction.adapter_request.requires, ["app_server_thread_id"]);
     assert.strictEqual(wakeAction.adapter_request.method, "turn/start");
 
@@ -229,12 +241,18 @@ async function callTool(id, name, args) {
     session = status.slots.find((slot) => slot.slot === "session-01");
     assert.strictEqual(session.app_server_thread_id, "app-thread-demo");
     assert.strictEqual(session.app_server_url, "ws://127.0.0.1:4575");
+    assert.strictEqual(session.slot_lifecycle, "wakeable");
+    assert.strictEqual(session.wakeable, true);
+    assert.strictEqual(session.wake_blocker, null);
 
     const readyAppServerPlan = await callTool(107, "plan_wake", {
       adapter: "codex-app-server",
       heartbeat_max_minutes: 60
     });
     wakeAction = readyAppServerPlan.actions.find((action) => action.slot === "session-01");
+    assert.strictEqual(readyAppServerPlan.decision, "WAKE");
+    assert.strictEqual(readyAppServerPlan.summary.wakeable, 1);
+    assert.strictEqual(wakeAction.action, "wake_slot");
     assert.strictEqual(wakeAction.adapter_request.adapter, "codex-app-server");
     assert.strictEqual(wakeAction.adapter_request.mode, "ready");
     assert.strictEqual(wakeAction.adapter_request.params.threadId, "app-thread-demo");

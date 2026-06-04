@@ -50,7 +50,7 @@ async function run(opts) {
     checked_at: opts["checked-at"]
   });
   const selectedActions = plan.actions
-    .filter((action) => action.action === "wake_slot" || action.action === "continue_task" || action.action === "refresh_idle_slot")
+    .filter((action) => action.action === "wake_slot" || action.action === "continue_task" || action.action === "refresh_idle_slot" || action.action === "attach_required")
     .filter((action) => !opts.slot || action.slot === opts.slot)
     .map((action) => withPromptOverride(action, opts.prompt));
 

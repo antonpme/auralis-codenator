@@ -1,7 +1,7 @@
 {
   "name": "auralis-codenator",
-  "version": "0.4.1",
-  "description": "Parallel session orchestration, shared focus-board coordination, and a local admin dashboard for Codex.",
+  "version": "0.4.2",
+  "description": "Parallel focus-slot orchestration, shared focus-board coordination, and a local admin dashboard for Codex.",
   "license": "MIT",
   "homepage": "https://github.com/antonpme/auralis-codenator",
   "repository": {

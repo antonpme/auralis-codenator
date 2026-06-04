@@ -117,7 +117,7 @@ function messageText(payload) {
 }
 
 function detectSlot(text) {
-  const explicit = String(text).match(/\bslot\s+(coordinator|session-\d{2})\b/i);
+  const explicit = String(text).match(/\bslot\s+([a-z][a-z0-9]*(?:[-_][a-z0-9]+)*)\b/i);
   if (explicit) return explicit[1].toLowerCase();
   return "";
 }

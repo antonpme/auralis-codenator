@@ -22,6 +22,9 @@ task system, and it is not tied to one project. A project such as
   `detail: "full"` only for a deliberate investigation that needs full task,
   report, and integration history.
 - Codex app-server is the wake adapter.
+- A registered focus slot is ledger-only until it has an explicit
+  `app_server_thread_id`; only `wakeable` slots can receive app-server wake
+  turns.
 - Desktop cron is not the backbone.
 - Coordinator manages backlog and assignments.
 - Worker slots read all progress, own only their lane/task, and report results.
@@ -46,9 +49,12 @@ task system, and it is not tied to one project. A project such as
 4. Verify any `commit_report` before integration. Do not trust worker reports
    without focused tests in the source worktree and again after integration.
 5. Manage backlog with `upsert_milestone`, `upsert_lane`, and `create_task`.
-6. Assign only when a slot is healthy, idle, unread 0, and has no unintegrated
-   report.
+6. Assign only when a slot is healthy, idle, unread 0, has no unintegrated
+   report, and its lifecycle is understood. For work that must be woken by
+   app-server, the slot must be `wakeable`.
 7. Use `plan_wake` with `adapter="codex-app-server"` before waking slots.
+   If it returns `attach_required`, first attach/register an app-server thread;
+   do not pretend the ledger-only slot is a live session.
 8. After integrating a report, call `update_task` with status `integrated`,
    the integration commit, and verification evidence.
 

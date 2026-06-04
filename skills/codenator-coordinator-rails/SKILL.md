@@ -31,12 +31,15 @@ Before any wave, check:
   long coordinator work.
 - Codenator status, Focus Board, coordinator inbox, and summary-pause state.
 - Repo status and current heads for every touched checkout.
-- Slot health: heartbeat fresh, idle, unread 0, no unintegrated report.
+- Slot health: heartbeat fresh, idle, unread 0, no unintegrated report, and
+  lifecycle clear (`wakeable` when app-server wake delivery is required).
 - Existing roadmap, handoff, and plan files relevant to the cycle.
 
 Do not assign implementation work when:
 
 - `plan_wake.decision` is `PAUSE`;
+- `plan_wake.decision` is `BLOCKED` because pending work needs
+  `attach_required` / `missing_app_server_thread_id`;
 - summary pause is due;
 - coordinator inbox has unverified reports;
 - chosen slots are stale, active, unread, blocked, or missing tool access;
@@ -92,6 +95,7 @@ Assign only when all are true:
 - plan exists;
 - task has a spec;
 - slot is healthy, idle, unread 0;
+- slot is `wakeable` if the task depends on app-server wake delivery;
 - slot has a registered worktree and branch;
 - task scope matches the slot lane;
 - no unintegrated report is waiting from that slot.

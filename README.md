@@ -1,9 +1,9 @@
 # auralis-codenator
 
-Parallel session orchestration for Codex Desktop.
+Parallel focus-slot orchestration for Codex.
 
 `auralis-codenator` is a small local utility for coordinating multiple
-focused Codex Desktop sessions across projects, worktrees, inboxes, hooks, and
+MCP-ledger-backed Codex focus slots across projects, worktrees, inboxes, hooks,
 commit reports, and a shared Focus Board.
 
 Existing `codextrator` CLI commands, environment variables, and
@@ -24,7 +24,7 @@ and branch live in the registry metadata.
   receipts, and coordinator summary-pause state.
 - Read-only browser admin dashboard for slots, tasks, current work, milestones,
   and wake-plan state.
-- Slot registry view with current task and heartbeat state.
+- Slot registry view with current task, heartbeat, and wakeability state.
 - Structured message ledger.
 - Heartbeat health records and recovery summary.
 - Commit reports.
@@ -100,6 +100,24 @@ MCP tools:
   progress after the periodic integration threshold.
 - `record_wake_attempt`: persist notify-only or adapter wake proof records.
 
+### Slot Lifecycle
+
+Codenator slot metadata is not the same thing as a live Codex session.
+
+- `coordinator`: the coordinator ledger identity. It can receive inbox work,
+  but worker wake rules do not apply.
+- `ledger_only`: durable slot metadata exists: board assignment, task state,
+  inbox cursor, worktree, branch, and focus. There is no app-server thread id,
+  so Codenator must not claim the slot can be woken.
+- `wakeable`: the slot has an explicit `app_server_thread_id`; app-server
+  wake adapters can build a ready `turn/start` request for it.
+- `attach_required`: a ledger-only worker slot has unread or active work. This
+  blocks wake delivery until a real app-server thread is attached or discovered.
+
+`get_status`, `get_focus_board`, `plan_wake`, and the admin dashboard expose
+`slot_lifecycle`, `wakeable`, `app_server_attached`, and `wake_blocker` so a
+coordinator can distinguish durable work state from a live wakeable session.
+
 Design boundary: Codex automations should not be the primary transport for
 focus-slot work. If used later, they should only act as an external watchdog.
 Actual coordination should happen through the MCP inbox/task/report tools.
@@ -146,6 +164,8 @@ cursor inbox, task, and heartbeat state, then returns one of:
 
 - `DONT_NOTIFY`: nothing actionable is waiting.
 - `NOTIFY`: coordinator attention or recovery is needed.
+- `BLOCKED`: work is waiting, but at least one required wake boundary is
+  missing, such as `app_server_thread_id` for a ledger-only worker slot.
 - `WAKE`: one or more healthy slots have unread work and should be nudged by an
   external adapter.
 - `PAUSE`: the coordinator has reached the periodic summary threshold and must
@@ -155,8 +175,9 @@ cursor inbox, task, and heartbeat state, then returns one of:
 The tool is deliberately non-mutating. It does not claim tasks, clear inboxes,
 start Desktop automations, or create Codex app-server turns. With
 `adapter: "codex-app-server"` it returns a ready `turn/start` request only for a
-slot that has an explicit `app_server_thread_id`; otherwise it stays in dry-run
-mode and marks the missing requirement instead of guessing a thread id.
+slot that has an explicit `app_server_thread_id`; otherwise the adapter request
+is `mode: "blocked"` with `reason: "missing_app_server_thread_id"` instead of
+guessing a thread id.
 
 After an external helper performs a notify-only or app-server wake attempt, it
 can call `record_wake_attempt` to write an audit record under `wake/`.
@@ -263,7 +284,8 @@ keeps thread creation separate from durable slot metadata.
 
 `codenator-app-thread-discover` scans local Codex Desktop session JSONL files
 and proposes app-server thread ids for slots whose startup prompts explicitly
-name `slot session-XX` or `slot coordinator`. Default mode is read-only:
+name `slot <stable-slot-id>` such as `slot session-01`, `slot aos-tick-01`, or
+`slot coordinator`. Default mode is read-only:
 
 ```powershell
 node .\bin\codenator-app-thread-discover.js `
@@ -521,4 +543,4 @@ compatibility. Treat it as Codenator-owned data.
 - Use `watchdog-check` for out-of-band health checks. Frequent Codex cron
   automations create visible Codex sessions and are not suitable as quiet
   watchdogs.
-- MCP can wrap this same store later.
+- MCP is the primary coordination transport for this store.

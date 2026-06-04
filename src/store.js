@@ -25,6 +25,10 @@ const RETIRED_SLOT_STATUSES = new Set(["retired"]);
 const PARKED_SLOT_STATUSES = new Set(["paused", "parked"]);
 const STALE_SLOT_STATUSES = new Set(["stale"]);
 const TERMINAL_TASK_STATUSES = new Set(["integrated", "done"]);
+const SLOT_LIFECYCLE_COORDINATOR = "coordinator";
+const SLOT_LIFECYCLE_LEDGER_ONLY = "ledger_only";
+const SLOT_LIFECYCLE_WAKEABLE = "wakeable";
+const SLOT_WAKE_BLOCKER_MISSING_THREAD = "missing_app_server_thread_id";
 
 function now() {
   return new Date().toISOString();
@@ -246,7 +250,7 @@ function registerSlot(store, input) {
   const previous = registry.sessions[input.slot] || {};
   const status = input.status || previous.status || "active";
   const clearsRetirement = previous.status === "retired" && status !== "retired";
-  registry.sessions[input.slot] = {
+  const nextSession = {
     ...previous,
     slot: input.slot,
     identity: input.identity || previous.identity || "developer",
@@ -273,11 +277,19 @@ function registerSlot(store, input) {
       : (clearsRetirement ? "" : (previous.retirement_reason || "")),
     updated_at: now()
   };
+  delete nextSession.slot_lifecycle;
+  delete nextSession.app_server_attached;
+  delete nextSession.wakeable;
+  delete nextSession.wake_blocker;
+  registry.sessions[input.slot] = nextSession;
   if (registry.sessions[input.slot].wave_id && !isRetiredSlot(registry.sessions[input.slot])) {
     registry.current_wave_id = registry.sessions[input.slot].wave_id;
   }
   writeRegistry(store, registry);
-  return registry.sessions[input.slot];
+  return {
+    ...registry.sessions[input.slot],
+    ...slotRuntimeState(input.slot, registry.sessions[input.slot])
+  };
 }
 
 function retireSlot(store, input) {
@@ -766,6 +778,10 @@ function buildWakePlan(store, input = {}) {
         wake: 0,
         notify: actions.filter((action) => action.notify === true).length,
         blocked: actions.filter((action) => action.blocked === true).length,
+        wakeable: actions.filter((action) => action.wakeable === true).length,
+        ledger_only: actions.filter((action) => action.slot_lifecycle === SLOT_LIFECYCLE_LEDGER_ONLY).length,
+        blocked_missing_thread: actions.filter((action) => action.reason === SLOT_WAKE_BLOCKER_MISSING_THREAD && action.blocked === true).length,
+        attach_required: 0,
         coordinator_pause: summaryPause
       },
       actions
@@ -789,7 +805,7 @@ function buildWakePlan(store, input = {}) {
   const unsafeSlotActions = actions.filter((action) => action.slot !== "coordinator" && action.safe_to_assign === false);
   const decision = wakeActions.length > 0
     ? "WAKE"
-    : (notifyActions.length > 0 ? "NOTIFY" : "DONT_NOTIFY");
+    : (blockedActions.length > 0 ? "BLOCKED" : (notifyActions.length > 0 ? "NOTIFY" : "DONT_NOTIFY"));
 
   return {
     version: 1,
@@ -809,6 +825,10 @@ function buildWakePlan(store, input = {}) {
       wake: wakeActions.length,
       notify: notifyActions.length,
       blocked: blockedActions.length,
+      wakeable: actions.filter((action) => action.wakeable === true).length,
+      ledger_only: actions.filter((action) => action.slot_lifecycle === SLOT_LIFECYCLE_LEDGER_ONLY).length,
+      blocked_missing_thread: actions.filter((action) => action.reason === SLOT_WAKE_BLOCKER_MISSING_THREAD && action.blocked === true).length,
+      attach_required: actions.filter((action) => action.action === "attach_required").length,
       coordinator_pause: summaryPause
     },
     actions
@@ -888,6 +908,27 @@ function planWakeAction(slot, options) {
       notify: true,
       safe_to_assign: false,
       blocked: true
+    });
+  }
+
+  if (slot.wakeable !== true) {
+    const hasPendingWakeWork = slot.unread > 0 || slot.current_task_status === "active";
+    if (hasPendingWakeWork) {
+      const prompt = buildSlotAttachPrompt(slot);
+      return baseWakeAction(slot, {
+        action: "attach_required",
+        reason: SLOT_WAKE_BLOCKER_MISSING_THREAD,
+        notify: true,
+        safe_to_assign: false,
+        blocked: true,
+        prompt,
+        adapter_request: buildAdapterRequest(slot, prompt, options.adapter)
+      });
+    }
+    return baseWakeAction(slot, {
+      action: "ledger_only_idle",
+      reason: SLOT_WAKE_BLOCKER_MISSING_THREAD,
+      safe_to_assign: false
     });
   }
 
@@ -994,6 +1035,10 @@ function baseWakeAction(slot, input) {
     heartbeat_status: slot.heartbeat_status || null,
     heartbeat_checked_at: slot.heartbeat_checked_at || null,
     run_id: slot.run_id || null,
+    slot_lifecycle: slot.slot_lifecycle || SLOT_LIFECYCLE_LEDGER_ONLY,
+    app_server_attached: slot.app_server_attached === true,
+    wakeable: slot.wakeable === true,
+    wake_blocker: slot.wake_blocker || null,
     app_server_thread_id: slot.app_server_thread_id || null,
     app_server_url: slot.app_server_url || null,
     prompt: input.prompt || null,
@@ -1039,6 +1084,16 @@ function buildSlotHeartbeatRefreshPrompt(slot, reason) {
   ].join("\n");
 }
 
+function buildSlotAttachPrompt(slot) {
+  return [
+    `Codenator attach required for ${slot.slot}.`,
+    "This is a ledger-only focus slot: board, task, inbox, worktree, and branch metadata exist, but there is no Codex app-server thread to wake.",
+    "Do not call this a live or wakeable session until an explicit app_server_thread_id is registered.",
+    "Attach a real Codex app-server thread, then register or discover it before sending wake work.",
+    `Suggested discovery command: codenator-app-thread-discover --root <ledger-root> --slots ${slot.slot} --apply --json`
+  ].join("\n");
+}
+
 function buildAdapterRequest(slot, prompt, adapter) {
   if (adapter !== "codex-app-server") {
     return {
@@ -1062,14 +1117,13 @@ function buildAdapterRequest(slot, prompt, adapter) {
   }
   return {
     adapter: "codex-app-server",
-    mode: "dry-run",
+    mode: "blocked",
+    blocked: true,
+    reason: SLOT_WAKE_BLOCKER_MISSING_THREAD,
     requires: ["app_server_thread_id"],
     method: "turn/start",
-    params_template: {
-      threadId: "${app_server_thread_id}",
-      input: [{ type: "text", text: prompt }]
-    },
-    note: "Dry-run only until a slot has an explicit app-server thread id."
+    params_template: null,
+    note: "Blocked until this ledger-only slot is attached to an explicit app-server thread id."
   };
 }
 
@@ -1102,6 +1156,7 @@ function buildStatus(store, input = {}) {
   const slots = ["coordinator", ...Object.keys(registry.sessions || {}).sort()].map((slot) => {
     const session = slot === "coordinator" ? registry.coordinator : registry.sessions[slot];
     const task = session.current_task_id ? tasksById.get(session.current_task_id) : null;
+    const runtimeState = slotRuntimeState(slot, session);
     return {
       slot,
       identity: session.identity || "",
@@ -1122,6 +1177,7 @@ function buildStatus(store, input = {}) {
       heartbeat_status: session.heartbeat_status || null,
       heartbeat_checked_at: session.heartbeat_checked_at || null,
       run_id: session.run_id || null,
+      ...runtimeState,
       app_server_thread_id: session.app_server_thread_id || null,
       app_server_url: session.app_server_url || null,
       thread_id: null,
@@ -1178,6 +1234,10 @@ function buildFocusBoardSnapshot(store, input = {}) {
       project: slot.project,
       role: slot.role,
       wave_id: slot.wave_id,
+      slot_lifecycle: slot.slot_lifecycle,
+      app_server_attached: slot.app_server_attached,
+      wakeable: slot.wakeable,
+      wake_blocker: slot.wake_blocker,
       focus: slot.focus,
       branch: slot.branch,
       current_task_id: slot.current_task_id,
@@ -1409,6 +1469,31 @@ function summarizeWaveSlot(slot) {
 
 function isRetiredSlot(slot) {
   return RETIRED_SLOT_STATUSES.has(slot.status || "");
+}
+
+function slotRuntimeState(slot, session = {}) {
+  if (slot === "coordinator") {
+    return {
+      slot_lifecycle: SLOT_LIFECYCLE_COORDINATOR,
+      app_server_attached: false,
+      wakeable: false,
+      wake_blocker: null
+    };
+  }
+  if (session.app_server_thread_id) {
+    return {
+      slot_lifecycle: SLOT_LIFECYCLE_WAKEABLE,
+      app_server_attached: true,
+      wakeable: true,
+      wake_blocker: null
+    };
+  }
+  return {
+    slot_lifecycle: SLOT_LIFECYCLE_LEDGER_ONLY,
+    app_server_attached: false,
+    wakeable: false,
+    wake_blocker: SLOT_WAKE_BLOCKER_MISSING_THREAD
+  };
 }
 
 function countBy(items, fn) {

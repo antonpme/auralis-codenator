@@ -553,6 +553,8 @@ function renderHtml(input) {
     function renderMetrics(slots, tasks, openTasks, reportedTasks, wake, wavePool) {
       const integrated = tasks.filter((task) => task.status === "integrated" || task.status === "done").length;
       const blocked = tasks.filter((task) => task.status === "blocked").length;
+      const wakeable = slots.filter((slot) => slot.wakeable === true).length;
+      const ledgerOnly = slots.filter((slot) => slot.slot_lifecycle === "ledger_only").length;
       const pause = (wake.summary && wake.summary.coordinator_pause) || {};
       const pauseRange = pause.range || {};
       const pauseNote = pause.due
@@ -563,6 +565,7 @@ function renderHtml(input) {
       const activeSlotNote = currentWave + (retiredCount ? "; " + retiredCount + " retired" : "");
       const metrics = [
         ["Active Slots", slots.length, activeSlotNote],
+        ["Wakeable", wakeable, ledgerOnly ? ledgerOnly + " ledger-only need app-server thread id" : "All current slots can be woken"],
         ["Open Tasks", openTasks.length, "Queued, active, reported, or blocked"],
         ["Reports Waiting", reportedTasks.length, "Need coordinator verification"],
         ["Integrated", integrated, blocked ? blocked + " blocked" : "All completed receipts"],
@@ -585,14 +588,17 @@ function renderHtml(input) {
         const now = task
           ? \`\${badge(task.status)} <div class="small muted">\${escapeHtml(task.title)}</div>\`
           : \`\${badge(action.action || "idle_healthy")} <div class="small muted">\${escapeHtml(action.safe_to_assign ? "Safe to assign" : action.reason || "No active task")}</div>\`;
-        const thread = slot.app_server_thread_id ? "headless ready" : "missing";
+        const lifecycle = slot.wakeable ? "wakeable" : (slot.slot_lifecycle || (slot.app_server_thread_id ? "wakeable" : "ledger_only"));
+        const threadNote = slot.app_server_thread_id
+          ? shortId(slot.app_server_thread_id)
+          : (slot.wake_blocker || "missing_app_server_thread_id");
         return \`
           <tr>
             <td><div class="slot-name">\${escapeHtml(slot.slot)}</div><div class="small muted">\${escapeHtml(slot.project || "")}</div></td>
             <td><div>\${escapeHtml(slot.focus || "")}</div><div class="small muted mono">\${escapeHtml(shortBranch(slot.branch))}</div></td>
             <td>\${now}</td>
             <td>\${badge(slot.heartbeat_status || "missing")}<div class="small muted">\${escapeHtml(formatDate(slot.heartbeat_checked_at))}</div></td>
-            <td>\${badge(thread)}<div class="small muted mono">\${escapeHtml(shortId(slot.app_server_thread_id || ""))}</div></td>
+            <td>\${badge(lifecycle)}<div class="small muted mono">\${escapeHtml(threadNote)}</div></td>
           </tr>
         \`;
       }).join("");
@@ -670,9 +676,9 @@ function renderHtml(input) {
       const raw = String(value || "unknown");
       const text = raw.replace(/_/g, " ");
       let kind = "info";
-      if (["ok", "active", "integrated", "done", "headless ready", "idle healthy"].includes(raw)) kind = "ok";
-      if (["queued", "reported", "review", "notify", "wake_slot", "continue_task", "summary_pause_hold"].includes(raw)) kind = "warn";
-      if (["blocked", "failed", "stale", "missing", "blocked_restart_required", "pause", "coordinator_summary_pause"].includes(raw)) kind = "bad";
+      if (["ok", "active", "integrated", "done", "headless ready", "idle healthy", "wakeable"].includes(raw)) kind = "ok";
+      if (["queued", "reported", "review", "notify", "wake_slot", "continue_task", "summary_pause_hold", "ledger_only", "ledger_only_idle"].includes(raw)) kind = "warn";
+      if (["blocked", "failed", "stale", "missing", "missing_app_server_thread_id", "attach_required", "blocked_restart_required", "pause", "coordinator_summary_pause"].includes(raw)) kind = "bad";
       if (["idle", "idle_healthy"].includes(raw)) kind = "idle";
       return \`<span class="badge \${kind}">\${escapeHtml(text)}</span>\`;
     }

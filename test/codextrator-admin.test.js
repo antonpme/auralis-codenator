@@ -11,10 +11,12 @@ const { createAdminServer, buildSnapshot, renderHtml } = require("../src/admin-s
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codextrator-admin-"));
 const workspaceRoot = path.join(tmpRoot, "workspace");
 const worktree = path.join(workspaceRoot, "worktrees", "session-05");
+const ledgerOnlyWorktree = path.join(workspaceRoot, "worktrees", "session-06");
 
 async function main() {
   try {
     fs.mkdirSync(worktree, { recursive: true });
+    fs.mkdirSync(ledgerOnlyWorktree, { recursive: true });
     const store = storeApi.ensureStore(workspaceRoot, "coordinator");
 
     storeApi.registerSlot(store, {
@@ -50,12 +52,45 @@ async function main() {
       milestone_id: "cortex-v1",
       lane_id: "session-05"
     });
+    storeApi.registerSlot(store, {
+      slot: "session-06",
+      identity: "worker-b",
+      project: "auralis-cortex",
+      focus: "Ledger-only proof",
+      worktree: ledgerOnlyWorktree,
+      branch: "codex/ledger-only-proof"
+    });
+    storeApi.recordHeartbeat(store, {
+      slot: "session-06",
+      status: "ok",
+      run_id: "session-06-ledger-only"
+    });
+    storeApi.createTask(store, {
+      slot: "session-06",
+      task_id: "session-06-demo",
+      title: "Needs attachment",
+      message: "This must not be reported as wakeable.",
+      milestone_id: "cortex-v1",
+      lane_id: "session-05"
+    });
 
     const snapshot = buildSnapshot(store, { heartbeatMaxMinutes: 60 });
-    assert.strictEqual(snapshot.status.slots.find((slot) => slot.slot === "session-05").app_server_thread_id, "thread-headless-05");
-    assert.strictEqual(snapshot.board.progress.total_tasks, 1);
+    const wakeableSlot = snapshot.status.slots.find((slot) => slot.slot === "session-05");
+    const ledgerOnlySlot = snapshot.status.slots.find((slot) => slot.slot === "session-06");
+    assert.strictEqual(wakeableSlot.app_server_thread_id, "thread-headless-05");
+    assert.strictEqual(wakeableSlot.slot_lifecycle, "wakeable");
+    assert.strictEqual(wakeableSlot.wakeable, true);
+    assert.strictEqual(ledgerOnlySlot.app_server_thread_id, null);
+    assert.strictEqual(ledgerOnlySlot.slot_lifecycle, "ledger_only");
+    assert.strictEqual(ledgerOnlySlot.wakeable, false);
+    assert.strictEqual(ledgerOnlySlot.wake_blocker, "missing_app_server_thread_id");
+    assert.strictEqual(snapshot.board.assignments["session-06"].slot_lifecycle, "ledger_only");
+    assert.strictEqual(snapshot.board.progress.total_tasks, 2);
     assert.strictEqual(snapshot.board.progress.summary_pause.due, false);
     assert.strictEqual(snapshot.wake_plan.decision, "WAKE");
+    assert.strictEqual(snapshot.wake_plan.summary.wakeable, 1);
+    assert.strictEqual(snapshot.wake_plan.summary.ledger_only, 1);
+    assert.strictEqual(snapshot.wake_plan.summary.attach_required, 1);
 
     const html = renderHtml({ pollMs: 1000, rootLabel: workspaceRoot });
     assert.match(html, /Auralis Codenator Admin/);
@@ -79,9 +114,12 @@ async function main() {
       const liveSnapshot = await getJson(`${baseUrl}/api/snapshot`);
       assert.strictEqual(liveSnapshot.board.board.name, "Auralis Codenator Focus Board");
       assert.strictEqual(liveSnapshot.status.slots.some((slot) => slot.slot === "session-05"), true);
+      assert.strictEqual(liveSnapshot.status.slots.find((slot) => slot.slot === "session-06").slot_lifecycle, "ledger_only");
 
       const page = await getText(`${baseUrl}/`);
       assert.match(page, /Active Sessions/);
+      assert.match(page, /Wakeable/);
+      assert.match(page, /ledger-only need app-server thread id/);
       assert.match(page, /Task Pool/);
     } finally {
       await close(server);

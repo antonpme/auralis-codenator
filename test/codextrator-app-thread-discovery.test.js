@@ -15,6 +15,7 @@ const sessionsRoot = path.join(tmpRoot, "codex-home", "sessions");
 const workspaceRoot = path.join(tmpRoot, "workspace");
 const worktree01 = path.join(workspaceRoot, "worktrees", "memory-knowledge");
 const worktree02 = path.join(workspaceRoot, "worktrees", "process-orchestration");
+const worktreeTick = path.join(workspaceRoot, "worktrees", "aos-tick-01");
 
 function writeSession(fileName, input) {
   const file = path.join(sessionsRoot, fileName);
@@ -57,6 +58,7 @@ function runCli(args) {
 try {
   fs.mkdirSync(worktree01, { recursive: true });
   fs.mkdirSync(worktree02, { recursive: true });
+  fs.mkdirSync(worktreeTick, { recursive: true });
 
   writeSession("2026/05/19/rollout-older-session-01.jsonl", {
     id: "older-session-01",
@@ -82,6 +84,12 @@ try {
     mtime: "2026-05-19T09:40:00.000Z",
     text: "Auralis Codenator coordinator, slot coordinator."
   });
+  writeSession("2026/05/19/rollout-aos-tick-01.jsonl", {
+    id: "thread-aos-tick-01",
+    timestamp: "2026-05-19T09:12:00.000Z",
+    mtime: "2026-05-19T09:45:00.000Z",
+    text: `System Tick worker, slot aos-tick-01.\nWork in:\n${worktreeTick}`
+  });
   writeSession("2026/05/19/rollout-guardian.jsonl", {
     id: "thread-guardian",
     timestamp: "2026-05-19T09:15:00.000Z",
@@ -91,12 +99,15 @@ try {
   });
 
   const discovered = discoverAppThreads({ sessionsRoot });
-  assert.strictEqual(discovered.proposals.length, 3);
-  assert.deepStrictEqual(discovered.proposals.map((item) => item.slot), ["coordinator", "session-01", "session-02"]);
+  assert.strictEqual(discovered.proposals.length, 4);
+  assert.deepStrictEqual(discovered.proposals.map((item) => item.slot), ["aos-tick-01", "coordinator", "session-01", "session-02"]);
   const session01 = discovered.proposals.find((item) => item.slot === "session-01");
   assert.strictEqual(session01.thread_id, "thread-session-01");
   assert.strictEqual(session01.worktree.replace(/\\/g, "/"), worktree01.replace(/\\/g, "/"));
   assert.strictEqual(session01.confidence, "explicit_slot");
+  const tickSlot = discovered.proposals.find((item) => item.slot === "aos-tick-01");
+  assert.strictEqual(tickSlot.thread_id, "thread-aos-tick-01");
+  assert.strictEqual(tickSlot.worktree.replace(/\\/g, "/"), worktreeTick.replace(/\\/g, "/"));
 
   const storeDir = store.ensureStore(workspaceRoot, "coordinator");
   store.registerSlot(storeDir, {
@@ -112,6 +123,13 @@ try {
     focus: "Process",
     worktree: worktree02,
     branch: "codex/process"
+  });
+  store.registerSlot(storeDir, {
+    slot: "aos-tick-01",
+    project: "demo-project",
+    focus: "System Tick",
+    worktree: worktreeTick,
+    branch: "codex/system-tick"
   });
 
   const dryRun = runCli([
@@ -130,14 +148,19 @@ try {
     "--sessions-root",
     sessionsRoot,
     "--slots",
-    "session-01,session-02",
+    "session-01,session-02,aos-tick-01",
     "--apply",
     "--json"
   ]);
-  assert.deepStrictEqual(applied.applied.map((item) => item.slot), ["session-01", "session-02"]);
+  assert.deepStrictEqual(applied.applied.map((item) => item.slot), ["aos-tick-01", "session-01", "session-02"]);
   const status = store.buildStatus(storeDir);
+  assert.strictEqual(status.slots.find((slot) => slot.slot === "aos-tick-01").app_server_thread_id, "thread-aos-tick-01");
+  assert.strictEqual(status.slots.find((slot) => slot.slot === "aos-tick-01").slot_lifecycle, "wakeable");
+  assert.strictEqual(status.slots.find((slot) => slot.slot === "aos-tick-01").wakeable, true);
   assert.strictEqual(status.slots.find((slot) => slot.slot === "session-01").app_server_thread_id, "thread-session-01");
+  assert.strictEqual(status.slots.find((slot) => slot.slot === "session-01").slot_lifecycle, "wakeable");
   assert.strictEqual(status.slots.find((slot) => slot.slot === "session-02").app_server_thread_id, "thread-session-02");
+  assert.strictEqual(status.slots.find((slot) => slot.slot === "session-02").wakeable, true);
   assert.strictEqual(status.slots.find((slot) => slot.slot === "coordinator").app_server_thread_id, null);
 
   console.log("codextrator-app-thread-discovery.test.js: PASS");

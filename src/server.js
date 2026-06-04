@@ -272,7 +272,7 @@ function tools() {
     },
     {
       name: "plan_wake",
-      description: "Build a safe notify-only or dry-run wake plan from the MCP ledger without mutating sessions, tasks, or inbox cursors.",
+      description: "Build a safe notify-only, blocked, or ready wake plan from the MCP ledger without mutating sessions, tasks, or inbox cursors.",
       inputSchema: {
         type: "object",
         properties: {
@@ -324,7 +324,7 @@ async function main() {
   await startMcpAdminDashboard(config, log);
 
   const mcp = new Server(
-    { name: "auralis-codenator", version: "0.4.0" },
+    { name: "auralis-codenator", version: "0.4.2" },
     {
       capabilities: { tools: {} },
       instructions: [
