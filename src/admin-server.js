@@ -534,6 +534,8 @@ function renderHtml(input) {
     function render() {
       if (!snapshot) return;
       const slots = snapshot.status.slots.filter((slot) => slot.slot !== "coordinator");
+      const wavePool = (snapshot.board && snapshot.board.wave_pool) || {};
+      const currentWaveSlots = wavePool.current_slots || slots.filter((slot) => !slot.is_retired);
       const tasks = snapshot.board.tasks || [];
       const openTasks = tasks.filter((task) => !["integrated", "done"].includes(task.status));
       const reportedTasks = tasks.filter((task) => task.status === "reported");
@@ -541,14 +543,14 @@ function renderHtml(input) {
       const wake = snapshot.wake_plan || {};
 
       el("generated").textContent = "Updated " + formatDate(snapshot.generated_at) + " | wake=" + (wake.decision || "unknown");
-      renderMetrics(slots, tasks, openTasks, reportedTasks, wake);
+      renderMetrics(currentWaveSlots, tasks, openTasks, reportedTasks, wake, wavePool);
       renderSlots(slots, tasks);
       renderTasks(tasks);
-      renderCurrentWork(slots, tasks);
+      renderCurrentWork(currentWaveSlots, tasks);
       renderMilestones(snapshot.board.milestones || []);
     }
 
-    function renderMetrics(slots, tasks, openTasks, reportedTasks, wake) {
+    function renderMetrics(slots, tasks, openTasks, reportedTasks, wake, wavePool) {
       const integrated = tasks.filter((task) => task.status === "integrated" || task.status === "done").length;
       const blocked = tasks.filter((task) => task.status === "blocked").length;
       const pause = (wake.summary && wake.summary.coordinator_pause) || {};
@@ -556,8 +558,11 @@ function renderHtml(input) {
       const pauseNote = pause.due
         ? "Stop, summarize, then record the pause"
         : (pause.integrations_since_pause || 0) + "/" + (pauseRange.recommended || 35) + " since last summary";
+      const currentWave = wavePool.current_wave_id || "current";
+      const retiredCount = (wavePool.retired_slots || []).length;
+      const activeSlotNote = currentWave + (retiredCount ? "; " + retiredCount + " retired" : "");
       const metrics = [
-        ["Active Slots", slots.length, "Registered worker lanes"],
+        ["Active Slots", slots.length, activeSlotNote],
         ["Open Tasks", openTasks.length, "Queued, active, reported, or blocked"],
         ["Reports Waiting", reportedTasks.length, "Need coordinator verification"],
         ["Integrated", integrated, blocked ? blocked + " blocked" : "All completed receipts"],

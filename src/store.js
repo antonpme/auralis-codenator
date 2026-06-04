@@ -21,6 +21,10 @@ const SUMMARY_PAUSE_RECOMMENDED_INTEGRATIONS = 35;
 const SUMMARY_PAUSE_MAX_INTEGRATIONS = 40;
 const SUMMARY_PAUSE_TYPES = new Set(["coordinator.summary_pause", "summary_pause"]);
 const DEFAULT_RECENT_LIMIT = 10;
+const RETIRED_SLOT_STATUSES = new Set(["retired"]);
+const PARKED_SLOT_STATUSES = new Set(["paused", "parked"]);
+const STALE_SLOT_STATUSES = new Set(["stale"]);
+const TERMINAL_TASK_STATUSES = new Set(["integrated", "done"]);
 
 function now() {
   return new Date().toISOString();
@@ -240,15 +244,19 @@ function readInbox(store, slot, options = {}) {
 function registerSlot(store, input) {
   const registry = readRegistry(store);
   const previous = registry.sessions[input.slot] || {};
+  const status = input.status || previous.status || "active";
+  const clearsRetirement = previous.status === "retired" && status !== "retired";
   registry.sessions[input.slot] = {
     ...previous,
     slot: input.slot,
     identity: input.identity || previous.identity || "developer",
     project: input.project || previous.project || "",
+    role: input.role || previous.role || "",
     focus: input.focus || previous.focus || "",
     worktree: input.worktree ? normalizePath(input.worktree) : (previous.worktree || ""),
     branch: input.branch || previous.branch || "",
-    status: input.status || previous.status || "active",
+    status,
+    wave_id: input.wave_id !== undefined ? (input.wave_id || null) : (previous.wave_id || null),
     inbox: `cursors/${input.slot}.json`,
     run_id: input.run_id || previous.run_id || null,
     app_server_thread_id: input.app_server_thread_id !== undefined
@@ -257,10 +265,45 @@ function registerSlot(store, input) {
     app_server_url: input.app_server_url !== undefined
       ? (input.app_server_url || null)
       : (previous.app_server_url || null),
+    retired_at: status === "retired"
+      ? (previous.retired_at || now())
+      : (clearsRetirement ? null : (previous.retired_at || null)),
+    retirement_reason: status === "retired"
+      ? (input.reason || previous.retirement_reason || "")
+      : (clearsRetirement ? "" : (previous.retirement_reason || "")),
+    updated_at: now()
+  };
+  if (registry.sessions[input.slot].wave_id && !isRetiredSlot(registry.sessions[input.slot])) {
+    registry.current_wave_id = registry.sessions[input.slot].wave_id;
+  }
+  writeRegistry(store, registry);
+  return registry.sessions[input.slot];
+}
+
+function retireSlot(store, input) {
+  const slot = input.slot;
+  if (!slot || slot === "coordinator") throw new Error("retire_slot requires a non-coordinator slot");
+  const registry = readRegistry(store);
+  const session = registry.sessions[slot];
+  if (!session) throw new Error(`slot not found: ${slot}`);
+  const status = input.status || "retired";
+  if (!RETIRED_SLOT_STATUSES.has(status) && !PARKED_SLOT_STATUSES.has(status) && !STALE_SLOT_STATUSES.has(status)) {
+    throw new Error(`unsupported retire status: ${status}`);
+  }
+  const currentStatus = session.current_task_status || null;
+  const hasOpenTask = session.current_task_id && !TERMINAL_TASK_STATUSES.has(currentStatus);
+  if (hasOpenTask && input.force !== true) {
+    throw new Error(`slot ${slot} has open task ${session.current_task_id}; pass force only after recording a blocker or handoff`);
+  }
+  registry.sessions[slot] = {
+    ...session,
+    status,
+    retired_at: status === "retired" ? now() : (session.retired_at || null),
+    retirement_reason: input.reason || session.retirement_reason || "",
     updated_at: now()
   };
   writeRegistry(store, registry);
-  return registry.sessions[input.slot];
+  return registry.sessions[slot];
 }
 
 function taskPath(store, taskId) {
@@ -342,6 +385,7 @@ function updateSlotTask(store, slot, taskId, taskStatus) {
 function createTask(store, input) {
   const registry = readRegistry(store);
   const session = registry.sessions[input.slot] || {};
+  if (isRetiredSlot(session)) throw new Error(`slot ${input.slot} is retired; register a fresh wave slot before assigning work`);
   const task = normalizeTask({
     task_id: input.task_id || makeTaskId(input.slot),
     slot: input.slot,
@@ -496,14 +540,15 @@ function updateTask(store, taskId, input) {
 }
 
 function claimNextTask(store, slot) {
+  const registry = readRegistry(store);
+  const session = registry.sessions[slot] || {};
+  if (isRetiredSlot(session)) throw new Error(`slot ${slot} is retired; register a fresh wave slot before claiming work`);
   const messages = readInbox(store, slot, { markRead: true });
   let taskMessage = messages.find((message) => message.type === "task.assign" && message.task_id);
   let task = null;
   if (taskMessage) {
     task = readTask(store, taskMessage.task_id);
   } else {
-    const registry = readRegistry(store);
-    const session = registry.sessions[slot] || {};
     if (session.current_task_id) task = readTask(store, session.current_task_id);
   }
   if (!task) return { task: null, messages };
@@ -820,11 +865,29 @@ function planWakeAction(slot, options) {
     });
   }
 
-  if (slot.status === "paused" || slot.status === "parked") {
+  if (isRetiredSlot(slot)) {
+    return baseWakeAction(slot, {
+      action: "retired",
+      reason: "slot_retired",
+      safe_to_assign: false
+    });
+  }
+
+  if (PARKED_SLOT_STATUSES.has(slot.status)) {
     return baseWakeAction(slot, {
       action: "parked",
       reason: "slot_parked",
       safe_to_assign: false
+    });
+  }
+
+  if (STALE_SLOT_STATUSES.has(slot.status)) {
+    return baseWakeAction(slot, {
+      action: "blocked_restart_required",
+      reason: "slot_stale",
+      notify: true,
+      safe_to_assign: false,
+      blocked: true
     });
   }
 
@@ -919,6 +982,8 @@ function baseWakeAction(slot, input) {
     blocked: input.blocked === true,
     safe_to_assign: input.safe_to_assign === true,
     status: slot.status || "",
+    role: slot.role || "",
+    wave_id: slot.wave_id || null,
     project: slot.project || "",
     focus: slot.focus || "",
     worktree: slot.worktree || "",
@@ -1041,10 +1106,14 @@ function buildStatus(store, input = {}) {
       slot,
       identity: session.identity || "",
       project: session.project || "",
+      role: session.role || "",
       focus: session.focus || "",
       worktree: session.worktree || "",
       branch: session.branch || "",
       status: session.status || "",
+      wave_id: session.wave_id || null,
+      retired_at: session.retired_at || null,
+      retirement_reason: session.retirement_reason || "",
       unread: unreadMessages(store, slot).length,
       current_task_id: session.current_task_id || null,
       current_task_status: session.current_task_status || null,
@@ -1055,7 +1124,9 @@ function buildStatus(store, input = {}) {
       run_id: session.run_id || null,
       app_server_thread_id: session.app_server_thread_id || null,
       app_server_url: session.app_server_url || null,
-      thread_id: null
+      thread_id: null,
+      is_retired: isRetiredSlot(session),
+      updated_at: session.updated_at || null
     };
   });
   const recentTasks = recentBy(tasks.map((task) => summarizeTaskBrief(task)), "updated_at", recentLimit);
@@ -1064,7 +1135,8 @@ function buildStatus(store, input = {}) {
       version: registry.version,
       name: registry.name,
       transport: "mcp",
-      updated_at: registry.updated_at
+      updated_at: registry.updated_at,
+      current_wave_id: registry.current_wave_id || null
     },
     slots,
     progress: {
@@ -1095,11 +1167,17 @@ function buildFocusBoardSnapshot(store, input = {}) {
   const status = buildStatus(store);
   const tasks = listTasks(store).map((task) => summarizeTask(task));
   const summaryPause = buildSummaryPausePolicy(store, tasks);
-  const assignments = Object.fromEntries(status.slots
+  const operationalSlots = status.slots
+    .filter((slot) => slot.slot !== "coordinator")
+    .filter((slot) => !isRetiredSlot(slot));
+  const wavePool = buildWavePool(status.slots, status.registry.current_wave_id);
+  const assignments = Object.fromEntries(operationalSlots
     .filter((slot) => slot.slot !== "coordinator")
     .map((slot) => [slot.slot, {
       slot: slot.slot,
       project: slot.project,
+      role: slot.role,
+      wave_id: slot.wave_id,
       focus: slot.focus,
       branch: slot.branch,
       current_task_id: slot.current_task_id,
@@ -1152,7 +1230,9 @@ function buildFocusBoardSnapshot(store, input = {}) {
     progress: {
       status_counts: countBy(tasks, (task) => task.status || "unknown"),
       total_tasks: tasks.length,
-      active_slots: Object.keys(assignments).length,
+      active_slots: operationalSlots.length,
+      current_wave_id: wavePool.current_wave_id,
+      current_wave_slot_count: wavePool.current_slots.length,
       summary_pause: summaryPause
     },
     detail: detailMetadata(detailMode, tasks.length, detailMode === "full" ? tasks.length : visibleCurrentTasks.length, "tasks", recentLimit),
@@ -1161,6 +1241,7 @@ function buildFocusBoardSnapshot(store, input = {}) {
     current_tasks: visibleCurrentTasks,
     recent_reports: recentReports,
     recent_integration_receipts: recentIntegrationReceipts,
+    wave_pool: wavePool,
     assignments
   };
 
@@ -1258,7 +1339,7 @@ function buildMilestoneSummaries(board, tasks, options = {}) {
 
 function buildLaneSummaries(board, status, tasks, options = {}) {
   const lanes = new Map(board.lanes.map((lane) => [lane.lane_id, lane]));
-  for (const slot of status.slots) {
+  for (const slot of status.slots.filter((item) => !isRetiredSlot(item))) {
     if (slot.slot === "coordinator") continue;
     const existing = [...lanes.values()].find((lane) => lane.owner_slot === slot.slot);
     if (!existing) {
@@ -1284,6 +1365,50 @@ function buildLaneSummaries(board, status, tasks, options = {}) {
       if (options.includeTaskIds) summary.task_ids = laneTasks.map((task) => task.task_id);
       return summary;
     });
+}
+
+function buildWavePool(slots, preferredWaveId = null) {
+  const workerSlots = slots.filter((slot) => slot.slot !== "coordinator");
+  const activeSlots = workerSlots.filter((slot) => !isRetiredSlot(slot));
+  const waveSlots = activeSlots.filter((slot) => slot.wave_id);
+  const preferredWaveHasSlots = preferredWaveId && waveSlots.some((slot) => slot.wave_id === preferredWaveId);
+  const currentWaveId = preferredWaveHasSlots ? preferredWaveId : latestWaveId(waveSlots);
+  const currentSlots = currentWaveId
+    ? activeSlots.filter((slot) => slot.wave_id === currentWaveId)
+    : activeSlots;
+  return {
+    current_wave_id: currentWaveId,
+    current_slots: currentSlots.map(summarizeWaveSlot),
+    retired_slots: workerSlots.filter((slot) => isRetiredSlot(slot)).map(summarizeWaveSlot)
+  };
+}
+
+function latestWaveId(slots) {
+  if (slots.length === 0) return null;
+  return slots
+    .slice()
+    .sort((left, right) => String(right.updated_at || "").localeCompare(String(left.updated_at || "")))[0]
+    .wave_id || null;
+}
+
+function summarizeWaveSlot(slot) {
+  return {
+    slot: slot.slot,
+    role: slot.role || "",
+    wave_id: slot.wave_id || null,
+    status: slot.status || "",
+    project: slot.project || "",
+    focus: slot.focus || "",
+    branch: slot.branch || "",
+    current_task_id: slot.current_task_id || null,
+    current_task_status: slot.current_task_status || null,
+    retired_at: slot.retired_at || null,
+    retirement_reason: slot.retirement_reason || ""
+  };
+}
+
+function isRetiredSlot(slot) {
+  return RETIRED_SLOT_STATUSES.has(slot.status || "");
 }
 
 function countBy(items, fn) {
@@ -1328,6 +1453,7 @@ module.exports = {
   storePath,
   resolveStoreRoot,
   registerSlot,
+  retireSlot,
   readInbox,
   upsertMilestone,
   upsertLane,

@@ -22,6 +22,8 @@ try {
     slot: "session-02",
     identity: "worker-a",
     project: "demo-project",
+    role: "Runtime Worker",
+    wave_id: "wave-old",
     focus: "Process Rails",
     worktree: processWorktree,
     branch: "codex/process"
@@ -30,6 +32,8 @@ try {
     slot: "session-04",
     identity: "worker-a",
     project: "demo-project",
+    role: "CodeReviewer",
+    wave_id: "wave-current",
     focus: "Catalog",
     worktree: catalogWorktree,
     branch: "codex/catalog"
@@ -109,6 +113,11 @@ try {
   });
   assert.strictEqual(coordinatorSnapshot.progress.summary_pause.integrated_count, 1);
   assert.strictEqual(coordinatorSnapshot.progress.summary_pause.due, false);
+  assert.strictEqual(coordinatorSnapshot.progress.active_slots, 2);
+  assert.strictEqual(coordinatorSnapshot.progress.current_wave_id, "wave-current");
+  assert.strictEqual(coordinatorSnapshot.wave_pool.current_wave_id, "wave-current");
+  assert.deepStrictEqual(coordinatorSnapshot.wave_pool.current_slots.map((slot) => slot.slot), ["session-04"]);
+  assert.strictEqual(coordinatorSnapshot.assignments["session-04"].role, "CodeReviewer");
   assert.strictEqual(coordinatorSnapshot.milestones[0].task_counts.integrated, 1);
   assert.strictEqual(coordinatorSnapshot.milestones[0].task_counts.active, 1);
   assert.strictEqual(coordinatorSnapshot.milestones[0].task_ids, undefined);
@@ -160,15 +169,44 @@ try {
   assert.strictEqual(fullStatus.detail.mode, "full");
   assert.strictEqual(fullStatus.tasks.length, 2);
 
+  const retiredSlot = storeApi.retireSlot(store, {
+    slot: "session-02",
+    reason: "old wave replaced by fresh wave pool"
+  });
+  assert.strictEqual(retiredSlot.status, "retired");
+  assert.strictEqual(retiredSlot.retirement_reason, "old wave replaced by fresh wave pool");
+
+  assert.throws(() => storeApi.createTask(store, {
+    slot: "session-02",
+    task_id: "retired-task",
+    title: "Should not assign",
+    message: "Do not assign to retired slots."
+  }), /slot session-02 is retired/);
+
+  const retiredBoard = storeApi.buildFocusBoardSnapshot(store, {
+    viewer_slot: "coordinator"
+  });
+  assert.strictEqual(retiredBoard.progress.active_slots, 1);
+  assert.deepStrictEqual(retiredBoard.wave_pool.current_slots.map((slot) => slot.slot), ["session-04"]);
+  assert.deepStrictEqual(retiredBoard.wave_pool.retired_slots.map((slot) => slot.slot), ["session-02"]);
+  assert.strictEqual(retiredBoard.assignments["session-02"], undefined);
+
+  const retiredWakePlan = storeApi.buildWakePlan(store, {
+    heartbeat_max_minutes: 60
+  });
+  const retiredWakeAction = retiredWakePlan.actions.find((action) => action.slot === "session-02");
+  assert.strictEqual(retiredWakeAction.action, "retired");
+  assert.strictEqual(retiredWakeAction.safe_to_assign, false);
+
   for (let index = 0; index < 34; index += 1) {
     const taskId = `bulk-integrated-${index}`;
     storeApi.createTask(store, {
-      slot: "session-02",
+      slot: "session-04",
       task_id: taskId,
       title: `Bulk integration ${index}`,
       message: "Exercise the coordinator summary pause counter.",
       project: "demo-project",
-      lane_id: "process",
+      lane_id: "catalog",
       milestone_id: "m1-foundation"
     });
     storeApi.updateTask(store, taskId, {

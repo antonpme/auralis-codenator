@@ -11,8 +11,10 @@ const repoRoot = path.resolve(__dirname, "..");
 const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), "codextrator-mcp-"));
 const workspaceRoot = path.join(tmpRoot, "workspace");
 const worktree = path.join(workspaceRoot, "worktrees", "session-01");
+const reviewWorktree = path.join(workspaceRoot, "worktrees", "session-02");
 
 fs.mkdirSync(worktree, { recursive: true });
+fs.mkdirSync(reviewWorktree, { recursive: true });
 
 let proc = null;
 
@@ -123,6 +125,7 @@ async function callTool(id, name, args) {
     const listed = await rpc(2, "tools/list", {});
     const toolNames = listed.result.tools.map((tool) => tool.name);
     assert.ok(toolNames.includes("register_slot"));
+    assert.ok(toolNames.includes("retire_slot"));
     assert.ok(toolNames.includes("claim_next_task"));
     assert.ok(toolNames.includes("report_commit"));
     assert.ok(toolNames.includes("plan_wake"));
@@ -136,6 +139,8 @@ async function callTool(id, name, args) {
       slot: "session-01",
       project: "demo-project",
       identity: "worker-a",
+      role: "Runtime Worker",
+      wave_id: "wave-old",
       focus: "MCP slice",
       worktree,
       branch: "codex/mcp-demo"
@@ -179,6 +184,8 @@ async function callTool(id, name, args) {
     assert.strictEqual(session.unread, 1);
     assert.strictEqual(session.current_task_id, "mcp-task-1");
     assert.strictEqual(session.current_task_status, "queued");
+    assert.strictEqual(session.role, "Runtime Worker");
+    assert.strictEqual(session.wave_id, "wave-old");
     assert.strictEqual(session.thread_id, null);
     assert.strictEqual(session.app_server_thread_id, null);
 
@@ -335,6 +342,56 @@ async function callTool(id, name, args) {
     assert.match(wakeAction.prompt, /Do not claim a task/);
     assert.strictEqual(wakeAction.adapter_request.mode, "ready");
     assert.strictEqual(wakeAction.adapter_request.params.threadId, "app-thread-demo");
+
+    await callTool(114, "register_slot", {
+      slot: "session-02",
+      project: "demo-project",
+      identity: "reviewer",
+      role: "CodeReviewer",
+      wave_id: "wave-current",
+      focus: "Current wave reviewer",
+      worktree: reviewWorktree,
+      branch: "codex/review"
+    });
+
+    const retired = await callTool(115, "retire_slot", {
+      slot: "session-01",
+      reason: "old wave replaced by fresh wave pool"
+    });
+    assert.strictEqual(retired.slot.status, "retired");
+    assert.strictEqual(retired.slot.retirement_reason, "old wave replaced by fresh wave pool");
+
+    status = await callTool(116, "get_status", {});
+    session = status.slots.find((slot) => slot.slot === "session-01");
+    const reviewer = status.slots.find((slot) => slot.slot === "session-02");
+    assert.strictEqual(session.is_retired, true);
+    assert.strictEqual(reviewer.wave_id, "wave-current");
+
+    const retiredBoard = await callTool(117, "get_focus_board", {
+      viewer_slot: "coordinator"
+    });
+    assert.strictEqual(retiredBoard.progress.current_wave_id, "wave-current");
+    assert.deepStrictEqual(retiredBoard.wave_pool.current_slots.map((slot) => slot.slot), ["session-02"]);
+    assert.deepStrictEqual(retiredBoard.wave_pool.retired_slots.map((slot) => slot.slot), ["session-01"]);
+    assert.strictEqual(retiredBoard.assignments["session-01"], undefined);
+    assert.strictEqual(retiredBoard.assignments["session-02"].role, "CodeReviewer");
+
+    const retiredWakePlan = await callTool(118, "plan_wake", {
+      heartbeat_max_minutes: 60
+    });
+    assert.strictEqual(retiredWakePlan.actions.find((action) => action.slot === "session-01").action, "retired");
+
+    const retiredCreate = await rpc(119, "tools/call", {
+      name: "create_task",
+      arguments: {
+        slot: "session-01",
+        task_id: "retired-task",
+        title: "Should not assign",
+        message: "Do not assign to retired slots."
+      }
+    });
+    assert.strictEqual(retiredCreate.result.isError, true);
+    assert.match(retiredCreate.result.content[0].text, /slot session-01 is retired/);
 
     const summaryPause = await callTool(14, "record_summary_pause", {
       summary: "MCP test checkpoint summary."

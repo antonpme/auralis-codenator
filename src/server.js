@@ -92,12 +92,28 @@ function tools() {
           focus: { type: "string" },
           worktree: { type: "string" },
           branch: { type: "string" },
+          role: { type: "string" },
+          wave_id: { type: "string" },
           status: { type: "string" },
           run_id: { type: "string" },
           app_server_thread_id: { type: "string" },
           app_server_url: { type: "string" }
         },
         required: ["slot", "project", "focus", "worktree"]
+      }
+    },
+    {
+      name: "retire_slot",
+      description: "Coordinator-only: retire, park, or stale a focus slot so historical ledger entries do not count as the current live wave pool.",
+      inputSchema: {
+        type: "object",
+        properties: {
+          slot: { type: "string" },
+          status: { type: "string", enum: ["retired", "parked", "paused", "stale"] },
+          reason: { type: "string" },
+          force: { type: "boolean" }
+        },
+        required: ["slot"]
       }
     },
     {
@@ -331,6 +347,8 @@ async function main() {
           return ok(store.buildStatus(storeDir, args));
         case "register_slot":
           return ok({ slot: store.registerSlot(storeDir, args) });
+        case "retire_slot":
+          return ok({ slot: store.retireSlot(storeDir, args) });
         case "send_message":
           return ok({
             message: store.appendLedger(storeDir, {
